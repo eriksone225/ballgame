@@ -1,0 +1,42 @@
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1080" height="1080" fill="#ffffff"/>
+
+  <g transform="translate(540, 540)">
+    
+    <circle cx="-160" cy="0" r="220" 
+            fill="#00c3ff" 
+            stroke="#1a1a1a" 
+            stroke-width="35" />
+            
+    <g fill="#ffffff">
+      <circle cx="-120" cy="-40" r="30" />
+      <circle cx="-120" cy="40" r="30" />
+    </g>
+
+    <circle cx="160" cy="0" r="220" 
+            fill="#d62626" 
+            stroke="#1a1a1a" 
+            stroke-width="35" />
+            
+    <g fill="#ffffff">
+      <circle cx="120" cy="-40" r="30" />
+      <circle cx="120" cy="40" r="30" />
+    </g>
+
+    <path d="M -40 -120 
+             L 20 -60 
+             L 80 -100 
+             L 50 0 
+             L 100 60 
+             L 20 50 
+             L -20 120 
+             L -40 40 
+             L -100 20 
+             L -50 -20 Z" 
+          fill="#ffcc00" 
+          stroke="#1a1a1a" 
+          stroke-width="25" 
+          stroke-linejoin="round"/>
+          
+  </g>
+</svg>

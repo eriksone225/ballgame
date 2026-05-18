@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ball Battle Arena</title>
+    <link rel="icon" type="image/png" href="logo.svg">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1 id="mainTitle"><span class="highlight-p1">Ball Battle </span> <span class="highlight-p2">Arena</span></h1>
+
+    <!-- NEW: Live Count and Kill Feed Header -->
+    <div id="statusHeader">
+        <div id="liveCounts">
+            <span id="teamScoreDisplay">
+                <span class="highlight-p1">Left: <span id="liveCountP1">0</span></span>
+                |
+                <span class="highlight-p2">Right: <span id="liveCountP2">0</span></span>
+            </span>
+            <span id="ffaScoreDisplay" style="display:none; font-weight:bold; color: #ff4500;">
+                Alive: <span id="liveCountFFA">0</span>
+            </span>
+        </div>
+        <div id="killFeed">
+            <!-- Kill messages appear here -->
+        </div>
+    </div>
+    <!-- END NEW STATUS HEADER -->
+
+    <button id="toggleControlsBtn" class="btn-toggle" onclick="toggleControls()" 
+            style="width: 100%; max-width: 1100px; margin: 0 auto 5px auto; display: block; background-color: #555;">
+        Hide Controls &#9650;
+    </button>
+
+   <div class="controls" id="controlsPanel">
+    <div id="tabNav" class="tab-nav-container">
+        <button onclick="showRow(1)" class="tab-btn" id="btn-tab-1">General</button>
+        <button onclick="showRow(2)" class="tab-btn" id="btn-tab-2">Squads</button>
+        <button onclick="showRow(3)" class="tab-btn" id="btn-tab-3">Custom</button>
+        <button onclick="showRow(4)" class="tab-btn" id="btn-tab-4">Settings</button>
+
+    </div>
+    <div id="row-1" class="control-row">
+        <div class="settings-group">
+            <div class="mid-controls">
+    <div id="standardControls" style="display:flex; gap:15px; align-items:center; flex-wrap: wrap; justify-content: center; width: 100%;">
+    
+    <div style="display:flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px; max-width: 300px;">
+        <select id="modeSelect" onchange="toggleGameMode()">
+            <option value="team">Team Battle</option>
+            <option value="ffa">Free For All</option>
+            <option value="clan">Clan Battle</option>
+            <option value="tournament">Tournament (16 Teams)</option>
+            <option value="pet">Pet Simulator</option>
+            <option value="chess">Tactical Chess</option>
+        </select>
+        
+        <div id="countControlRow" style="display:flex; gap:3px; align-items:center; justify-content: center;">
+    <input type="number" id="p1Count" value="1" min="1" max="100" 
+           style="text-align: center; width: 35px; padding: 2px; height: 30px;" 
+           onchange="updateSquadUI()" placeholder="#L">
+
+    <span id="countVsLabel" style="font-size:0.7rem; font-weight:bold; color:#555;">VS</span>
+
+    <input type="number" id="p2Count" value="1" min="1" max="50" 
+           style="text-align: center; width: 35px; padding: 2px; height: 30px;" 
+           onchange="updateSquadUI()" placeholder="#R">
+
+    <button onclick="randomizeCounts()" class="btn-mini" title="Randomize Counts" 
+            style="width: 25px; background-color: #8e44ad; color: white;">?</button>
+
+    <button onclick="resetToDuel()" class="btn-mini" title="Reset to 1v1">1v1</button>
+</div>
+
+        <select id="lengthSelect">
+            <option value="quick">Quick (Low HP)</option>
+            <option value="medium" selected>Medium</option>
+            <option value="long">Long (High HP)</option>
+        </select>
+    </div>
+
+    <div style="display:flex; gap:5px; flex-direction: column; justify-content: center; flex: 1; min-width: 200px; max-width: 400px;">
+        <button class="btn-fight" onclick="beginBattle()" style="width: 100%;">FIGHT!</button>
+        <div style="display:flex; gap:2px;">
+            <button class="btn-reset" onclick="resetPositions()" style="width: 33%;">RESET</button>
+            <button class="btn-clear" onclick="clearSquads()" style="width: 33%;">CLEAR</button>
+            <button class="btn-clear" onclick="clearSquads(),clearObstacles(),clearWeapons()" style="width: 33%; font-size: 0.7rem;">CLR ALL</button>
+        </div>
+
+        <div style="display:flex; gap:2px; width: 100%;">
+            <button class="btn-reset" onclick="randomizeSquads('p1')" style="background-color: #9b59b6; flex: 1; padding: 6px 2px; font-size: 0.8rem;">RND L</button>
+            <button class="btn-reset" onclick="randomizeSquads('all')" style="background-color: #8e44ad; flex: 1; padding: 6px 2px; font-size: 0.8rem;">ALL</button>
+            <button class="btn-reset" onclick="randomizeSquads('p2')" style="background-color: #9b59b6; flex: 1; padding: 6px 2px; font-size: 0.8rem;">RND R</button>
+        </div>
+
+        <div style="display:flex; gap:2px; width: 100%;">
+    <button class="btn-reset" onclick="saveFavoriteSquads()" style="background-color:#16a085; flex:1; padding:6px 2px; font-size:0.72rem;">Save Fav</button>
+    <button class="btn-reset" onclick="loadFavoriteSquads()" style="background-color:#2980b9; flex:1; padding:6px 2px; font-size:0.72rem;">Load Fav</button>
+    <button class="btn-reset" onclick="clearFavoriteSquads()" style="background-color:#c0392b; flex:1; padding:6px 2px; font-size:0.72rem;">Del Fav</button>
+</div>
+
+        <div style="display:flex; gap:2px; width: 100%;">
+            <button class="btn-toggle" onclick="registerP1ToTourney()" style="background-color:#e67e22; flex-grow: 1; padding: 6px 2px; font-size: 0.8rem; white-space: nowrap;">+ Add P1</button>
+            <div id="poolCounter" style="background:#333; color:white; width: 35px; padding: 6px 0; font-size: 0.8rem; border:1px solid #000; text-align:center; display:flex; align-items:center; justify-content:center;">0/16</div>
+            <button class="btn-toggle" onclick="clearTourneyPool()" style="background-color:#c0392b; width: 25px; padding: 6px 0; font-size: 0.8rem;">&#215;</button>
+        </div>
+    </div>
+</div>
+
+    <div id="tournamentControls" style="display:none; flex-direction:column; gap:5px; width: 100%; max-width:400px; text-align:center;">
+        <h3 style="margin:0; color:var(--text-color); font-family:var(--ui-font)">TOURNAMENT HUB</h3>
+        <div style="display:flex; align-items:center; gap:5px; justify-content:center; margin-bottom:5px;">
+    <label style="font-size:0.8rem; font-weight:bold;">Team Size:</label>
+    <input type="number" id="tourneyTeamSize" value="5" min="1" max="30" style="width:50px; text-align:center;" 
+       onchange="document.getElementById('p1Count').value = this.value; document.getElementById('p2Count').value = this.value; updateSquadUI();">
+</div>
+        <div style="display:flex; gap:5px;">
+            <button class="btn-reset" onclick="initTournament()" style="background:#27ae60; flex:1;">NEW RUN</button>
+            <button class="btn-reset" onclick="loadTournament()" style="background:#f39c12; flex:1;">LOAD JSON</button>
+            <button class="btn-reset" onclick="saveTournament()" style="background:#2980b9; flex:1;">SAVE JSON</button>
+            
+        </div>
+        <div style="display:flex; gap:5px; margin-top:5px;">
+            <button class="btn-fight" onclick="playNextMatch('watch')" style="flex:1;">WATCH</button>
+            <button class="btn-fight" onclick="playNextMatch('sim')" style="flex:1; background:#7f8c8d;">QUICK SIM</button>
+            <button class="btn-reset" onclick="exitTournament()" style="background:#c0392b; width:auto; padding:2px 8px; font-size:0.8rem;">&#10006; EXIT</button>
+        </div>
+        <div id="tourneyStatus" style="font-size:0.8rem; margin-top:5px; font-weight:bold;">No Active Tournament</div>
+    </div>
+</div>
+            </div>
+    </div>
+
+    <div id="row-4" class="control-row">
+    <div class="settings-group" style="display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%;">
+        
+        <div class="top-settings-row" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; width: 100%;">
+            <button class="btn-toggle" onclick="openLeaderboard()" style="background-color: #f1c40f; color: #000; width: auto;">Leaderboard</button>
+            <button id="themeBtn" class="btn-toggle" onclick="toggleTheme()" style="width: auto;">Theme: Light</button>
+            <button id="soundBtn" class="btn-toggle" onclick="toggleSound()" style="width: auto;">Sound: Off</button>
+            <button id="advBtn" class="btn-toggle" onclick="toggleAdvancedMode()" style="width: auto;">Adv. Mode: Off</button>
+            <button id="nameBtn" class="btn-toggle" onclick="toggleCharacterNames()" style="width: auto;">Names: OFF</button>
+            <button id="trailBtn" class="btn-toggle active" onclick="toggleProjectileTrails()" style="width: auto;">Trails: ON</button>
+            <button id="cineBtn" class="btn-toggle" onclick="toggleCinematicCamera()" style="width: auto;">Cine Cam: OFF</button>
+<button id="slowMoBtn" class="btn-toggle" onclick="toggleSlowMoBigHit()" style="width: auto;">Big Hit Slow-Mo: OFF</button>
+            <button id="hitStopBtn" class="btn-toggle" onclick="toggleHitStop()" style="width: auto;">Hit Stop: OFF</button>
+            <button id="bloodBtn" class="btn-toggle" onclick="toggleBlood()" style="width: auto;">Blood: OFF</button>
+                        <button id="cutBtn" class="btn-toggle" onclick="toggleCut()" style="width: auto;">Cut: OFF</button>
+            
+        </div>
+
+        <div class="volume-panel">
+            <label class="volume-control">
+                <span>Master <b id="masterVolumeLabel">100%</b></span>
+                <input type="range" min="0" max="1" step="0.01" value="1" oninput="setMasterVolume(this.value)">
+            </label>
+
+            <label class="volume-control">
+                <span>Music <b id="musicVolumeLabel">45%</b></span>
+                <input type="range" min="0" max="1" step="0.01" value="0.45" oninput="setMusicVolume(this.value)">
+            </label>
+
+            <label class="volume-control">
+                <span>Battle <b id="battleVolumeLabel">100%</b></span>
+                <input type="range" min="0" max="1" step="0.01" value="1" oninput="setBattleVolume(this.value)">
+            </label>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; width: 100%; gap: 1px;">
+            <button class="btn-time" onclick="setTimeScale(0, this)">||</button>
+            <button class="btn-time" onclick="setTimeScale(0.25, this)">.25</button>
+            <button class="btn-time" onclick="setTimeScale(0.5, this)">.5</button>
+            <button class="btn-time" onclick="setTimeScale(0.75, this)">.75</button>
+            <button class="btn-time active" onclick="setTimeScale(1.0, this)">1x</button>
+            <button class="btn-time" onclick="setTimeScale(1.25, this)">1.25</button>
+            <button class="btn-time" onclick="setTimeScale(1.5, this)">1.5</button>
+            <button class="btn-time" onclick="setTimeScale(2.0, this)">2x</button>
+            <button class="btn-time" onclick="setTimeScale(3.0, this)">3x</button>
+        </div>
+
+    </div>
+</div>
+<div id="row-2" class="control-row">
+    <div class="squad-section" id="squadSection">
+        <div class="squad-column" id="p1SquadContainer"></div>
+
+        <span id="squadVsLabel" style="font-weight:bold; align-self:center; font-size: 1.5rem;">VS</span>
+
+        <div class="squad-column" id="p2SquadContainer"></div>
+    </div>
+</div>
+   
+ <div id="row-3" class="control-row">
+    <div class="customize-group">
+        <select id="mapSizeSelect" onchange="changeMapSize()" style="margin-top: 5px;">
+            <option value="small">Map: Small (Duel)</option>
+            <option value="normal" selected>Map: Normal</option>
+            <option value="large">Map: Large (War)</option>
+            <option value="huge">Map: Huge (Open World)</option>
+        </select>
+
+        <select id="arenaSelect" onchange="changeArenaTheme()" style="margin-top: 5px;">
+            <option value="white" selected>Arena: Standard</option>
+            <option value="desert">Arena: Desert (2x DMG)</option>
+            <option value="mud">Arena: Mud (Slow)</option>
+            <option value="snow">Arena: Snow (Slippery)</option>
+        </select>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap: 5px;">
+        <div class="settings-group" style="min-width: 150px;">
+            <select id="obstacleSelect" onchange="setObstacleMode(this.value)" style="margin-bottom: 2px;">
+                <option value="off">Obstacles: Off</option>
+                <option value="barrel">Place: Barrel</option>
+                <option value="rock">Place: Rock</option>
+                <option value="lava">Place: Lava</option>
+                <option value="spike">Place: Spike</option>
+                <option value="ice">Place: Ice</option>
+                <option value="mine">Place: Mine</option>
+                <option value="turret">Place: Turret</option>
+                <option value="black_hole">Place: Black Hole</option>
+            </select>
+            <div style="display:flex; gap:2px; width:100%;">
+                <button id="clearObsBtn" class="btn-toggle" onclick="clearObstacles()" style="background-color: #d35400; flex-grow:1;">Clear Obs</button>
+                <button class="btn-toggle" onclick="randomizeObstacles()" style="background-color: #8e44ad; flex-grow:1;">Rnd Obs</button>
+            </div>
+
+            <div class="arena-preset-panel">
+    <button class="btn-toggle" onclick="applyArenaPreset('empty')">Empty Arena</button>
+    <button class="btn-toggle" onclick="applyArenaPreset('chaos')">Chaos Arena</button>
+    <button class="btn-toggle" onclick="applyArenaPreset('cover')">Cover Arena</button>
+    <button class="btn-toggle" onclick="applyArenaPreset('minefield')">Minefield</button>
+    <button class="btn-toggle" onclick="applyArenaPreset('barrel_party')">Barrel Party</button>
+</div>
+            
+            <select id="weaponSelect" onchange="setWeaponMode(this.value)" style="margin-top: 5px; margin-bottom: 2px;">
+                <option value="off">Wpn Place: Off</option>
+                <option value="dagger">Place: Dagger</option>
+                <option value="gun">Place: Gun</option>
+                <option value="scythe">Place: Scythe</option>
+            </select>
+            <div style="display:flex; gap:2px; width:100%;">
+                <button class="btn-toggle" onclick="clearWeapons()" style="background-color: #c0392b; width: 40px;">&#215;</button>
+                <button class="btn-toggle" onclick="scatterWeapons()" style="background-color: #2c3e50; flex-grow:1;">Rnd Wpn</button>
+                <button id="editorBtn" class="btn-toggle" onclick="openEditor()" style="background-color: #e84393; color: white;">Editor</button>
+            </div>
+        </div>
+
+        <div class="settings-group" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+    <label style="font-size: 0.8rem; font-weight:bold; margin-bottom:2px; width: 100%;">GOD POWERS</label>
+    <div style="display:flex; gap:2px; justify-content: center;">
+        <button id="gp-zap" class="btn-toggle btn-god" onclick="setGodPower('lightning')" title="Click unit to Smite">⚡</button>
+        <button id="gp-heal" class="btn-toggle btn-god" onclick="setGodPower('heal')" title="Click unit to Heal">♥</button>
+        <button id="gp-boom" class="btn-toggle btn-god" onclick="setGodPower('explosion')" title="Click anywhere to Explode">💥</button>
+    </div>
+    <button class="btn-toggle" onclick="setGodPower('off')" style="background-color: #555; margin-top:2px; width: auto; padding: 6px 12px;">Cancel Power</button>
+</div>
+    </div>
+        </div>
+</div>
+
+    
+
+    <div class="main-layout">
+        <!-- P1 Stats -->
+        <div class="stats-panel" style="border-color: var(--accent-p1)">
+            <h3 style="color: var(--accent-p1)">P1 Preview</h3>
+            <div id="p1StatsContent" style="text-align:center; font-style:italic;">Select a fighter.</div>
+        </div>
+
+        <!-- Game -->
+       <div id="gameContainer">
+    <canvas id="gameCanvas" width="600" height="500"></canvas>
+    <div id="resultModal">
+    <button class="btn-close-modal" onclick="closeResultModal()" title="Close">&#215;</button>
+    
+    <h2 id="resultText">WINNER!</h2>
+    
+    <div id="msgContainer" style="margin-bottom: 15px; font-weight: normal;"></div>
+
+        <button id="playAgainBtn" class="btn-fight" onclick="playAgain()">Play Again</button>
+</div>
+
+<div class="camera-controls">
+    <button class="btn-mini" onclick="adjustZoom(-0.1)" title="Zoom Out" style="width:40px; font-size:1.2rem;">-</button>
+
+    <button class="btn-mini" onclick="cycleTarget(1)" title="Track Left Team" style="flex-grow:1; color: var(--accent-p1); border-right: 1px solid #555;">L Cam</button>
+
+    <button class="btn-mini" onclick="cycleTarget('all')" title="Track Any" style="flex-grow:1; border-right: 1px solid #555;">All</button>
+
+    <button class="btn-mini" onclick="cycleTarget(2)" title="Track Right Team" style="flex-grow:1; color: var(--accent-p2);">R Cam</button>
+
+    <div class="camera-jump">
+        <span>Fighter</span>
+        <input id="cameraFighterNumber" type="number" min="1" value="1">
+        <button class="btn-mini" onclick="trackFighterByNumber(document.getElementById('cameraFighterNumber').value)">Go</button>
+    </div>
+
+    <button class="btn-mini" onclick="resetCamera()" title="Reset Camera" style="flex-grow:1;">Reset Cam</button>
+
+    <button class="btn-mini" onclick="adjustZoom(0.1)" title="Zoom In" style="width:40px; font-size:1.2rem;">+</button>
+</div>
+    
+</div>
+        <!-- P2 Stats -->
+        <div class="stats-panel" style="border-color: var(--accent-p2)">
+            <h3 style="color: var(--accent-p2)">P2 Preview</h3>
+            <div id="p2StatsContent" style="text-align:center; font-style:italic;">Select a fighter.</div>
+        </div>
+    </div>
+
+    <div id="editorModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:var(--panel-bg); border:4px solid var(--panel-border); padding:15px; z-index:100; width:90%; max-width:350px; box-shadow:10px 10px 0 rgba(0,0,0,0.5); font-family:var(--ui-font);">
+    <button class="btn-close-modal" onclick="closeEditor()">&#215;</button>
+    <h2 style="margin-top:0; border-bottom:2px solid #ccc; text-align:center;">FIGHTER EDITOR</h2>
+    
+    <div style="margin-bottom:10px;">
+        <label>Select Target:</label>
+        <select id="editorTarget" style="width:100%; margin-top:5px; padding:5px; font-weight:bold;">
+            </select>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-bottom:15px;">
+        <div style="flex:1;">
+            <label>HP Mult:</label>
+            <input type="number" id="editHp" value="1.0" step="0.1" style="width:100%;">
+        </div>
+        <div style="flex:1;">
+            <label>Dmg Mult:</label>
+            <input type="number" id="editDmg" value="1.0" step="0.1" style="width:100%;">
+        </div>
+        <div style="flex:1;">
+            <label>Bravery:</label>
+            <input type="number" id="editBrav" value="0.5" step="0.1" min="0" max="1.0" style="width:100%;" title="0.0 = Cowardly, 1.0 = Aggressive">
+        </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+        <button class="btn-fight" onclick="applyEditor()" style="width:100%; background:#00cec9;">APPLY TO TARGET</button>
+        <button class="btn-reset" onclick="randomizeSelectedTarget()" style="width:100%; background:#6c5ce7;">🎲 RANDOMIZE TARGET</button>
+        <button class="btn-reset" onclick="resetSelectedTarget()" style="width:100%; background:#d63031;">♻ RESET STATS</button>
+    </div>
+</div>
+
+    <div id="leaderboardModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:var(--panel-bg); border:4px solid var(--panel-border); padding:20px; z-index:100; width:90%; max-width:400px; box-shadow:10px 10px 0 rgba(0,0,0,0.5); text-align:center;">
+    <button class="btn-close-modal" onclick="closeLeaderboard()">&#215;</button>
+    <h2 style="font-family:var(--ui-font); margin-top:0; border-bottom:2px solid #ccc; padding-bottom:10px;">🏆 HALL OF FAME</h2>
+    
+    <div style="max-height:300px; overflow-y:auto; margin-bottom:15px;">
+        <table style="width:100%; text-align:left; border-collapse:collapse;" id="scoreTable">
+            <thead>
+                <tr style="background:rgba(0,0,0,0.1); border-bottom:2px solid #555;">
+                    <th style="padding:8px;">Rank</th>
+                    <th style="padding:8px;">Fighter</th>
+                    <th style="padding:8px;">Kills</th>
+                    <th style="padding:8px;">Date</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboardBody">
+                </tbody>
+        </table>
+    </div>
+
+    <button class="btn-reset" onclick="clearLeaderboard()" style="width:100%; background:#c0392b;">RESET HISTORY</button>
+</div>
+    <!-- Footer (NEW) -->
+    <footer class="footer">
+        Ball Battle Arena by Farrel Krisna. Check out my website: 
+        <a href="https://farrelkrisna.ct.ws/" target="_blank">farrelkrisna.ct.ws</a>
+    </footer>
+    </datalist>
+    <script src="script.js"></script>
+</body>
+</html>

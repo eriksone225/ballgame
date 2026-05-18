@@ -1,0 +1,1778 @@
+:root {
+            --bg-color: #d2edff;
+            --text-color: #333;
+            --panel-bg: #fff;
+            --panel-border: #000;
+            --ui-font: 'Impact', 'Arial Black', sans-serif;
+            --accent-p1: #00c3ff;
+            --accent-p2: #d62626;
+        }
+
+        body.dark-mode {
+            --bg-color: #1a1a1a;
+            --text-color: #eee;
+            --panel-bg: #2d2d2d;
+            --panel-border: #555;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-x: hidden;
+            overflow-y: auto;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        h1 {
+            font-family: var(--ui-font);
+            text-transform: uppercase;
+            font-size: clamp(1.5rem, 5vw, 2rem);
+            margin: 0 0 15px 0;
+            text-align: center;
+            text-shadow: 2px 2px 0px var(--panel-bg), 3px 3px 0px var(--panel-border);
+            letter-spacing: 1px;
+        }
+        canvas {
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        .highlight-p1 { color: var(--accent-p1); }
+        .highlight-p2 { color: var(--accent-p2); }
+        .highlight-env { color: #777; font-style: italic; }
+        .highlight-ffa { color: #ff4500; } /* New FFA Highlight color */
+
+        /* Status Bar (New) */
+        #statusHeader {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px 15px;
+            background: var(--panel-bg);
+            border: 3px solid var(--panel-border);
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+            font-family: var(--ui-font);
+            font-size: clamp(0.9rem, 3vw, 1.1rem);
+            color: var(--text-color);
+            flex-wrap: wrap;
+        }
+        #liveCounts {
+            flex-grow: 1;
+            text-align: left;
+            min-width: 100px;
+        }
+        #killFeed {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.8rem;
+            /* MODIFIED: Fixed height for stability */
+            height: 40px; 
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            text-align: right;
+            width: 50%;
+            white-space: nowrap;
+            justify-content: flex-end;
+            min-width: 150px;
+        }
+        .kill-message {
+            /* MODIFIED: Ensure clean transition and fixed height */
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+            opacity: 1;
+            line-height: 1.05; /* Small line height for packing into 40px */
+            height: 1.05em; /* Fixed height based on line height */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            /* Reset margin/padding for stability */
+            margin: 0;
+            padding: 0;
+            display: block;
+        }
+
+        /* Main Layout */
+        .main-layout {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            justify-content: center;
+            width: 100%;
+            max-width: 1200px;
+            flex-wrap: wrap;
+        }
+
+        /* Stats Panels */
+        .stats-panel {
+            background: var(--panel-bg);
+            border: 3px solid var(--panel-border);
+            padding: 15px;
+            width: 200px;
+            box-shadow: 5px 5px 0px rgba(0,0,0,0.2);
+            font-size: 0.9rem;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+        .stats-panel h3 { margin: 0 0 10px 0; font-family: var(--ui-font); border-bottom: 2px solid #777; padding-bottom: 5px; }
+        .stats-row { display: flex; justify-content: space-between; }
+        .stats-val { font-weight: bold; }
+
+        /* Control Panel */
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            background: var(--panel-bg);
+            padding: 15px;
+            border: 3px solid var(--panel-border);
+            border-radius: 8px;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+            justify-content: center;
+            z-index: 5;
+            flex-wrap: wrap; 
+            align-items: center;
+            width: 100%; 
+            max-width: 1100px;
+            box-sizing: border-box;
+        }
+
+        .settings-group {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            flex-direction: row;
+            min-width: 120px;
+        }
+
+        /* --- NEW LAYOUT STYLES --- */
+
+/* Wrapper for the middle section (Mode Select + Fight Buttons) */
+.mid-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* Wrapper for the bottom section (Squad Lists) */
+.squad-section {
+    width: 100%; /* Force it to take the full bottom row */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* Align tops */
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 2px solid #ccc; /* Visual separator */
+}
+
+/* Update Squad Column to fit nicely side-by-side at the bottom */
+.squad-column {
+    display: flex;        /* Changed from grid to flex for better overflow handling */
+    flex-direction: column;
+    gap: 4px;
+    
+    flex: 1; 
+    min-width: 140px; 
+
+    /* FIXED HEIGHT LOGIC: */
+    /* This height allows roughly 8 fighters + the "Add Fighter" button to show */
+    height: 200px; 
+    max-height: 200px;
+    
+    overflow-y: auto;      /* Makes it scrollable if content exceeds 350px */
+    overflow-x: hidden;    /* Prevents ugly horizontal scrolling */
+    
+    padding: 10px; 
+    border: 2px solid var(--panel-border);
+    background: rgba(0,0,0,0.05); 
+    border-radius: 4px;
+    box-sizing: border-box; /* Ensures padding doesn't increase the 350px height */
+}
+
+/* Responsive adjustment for mobile */
+@media (max-width: 900px) {
+    /* Stack the boxes vertically */
+    .squad-section {
+        flex-direction: column; 
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* Force columns to fill 100% of the screen width */
+    .squad-column {
+        width: 100% !important; /* Overrides the 45% or 350px width */
+        max-width: 100%;        /* Prevents horizontal overflow */
+        margin: 0;
+        box-sizing: border-box;
+    }
+
+    /* Ensure the "VS" text stays centered between the two rows */
+    .squad-section span {
+        margin: 10px 0;
+        font-size: 1.5rem;
+        display: block;
+        text-align: center;
+    }
+    
+    /* Optional: adjustments for other main layout elements */
+    .main-layout { 
+        flex-direction: column; 
+        align-items: center; 
+    }
+    #gameContainer { 
+        order: 1; 
+        margin-bottom: 20px; 
+    }
+}
+
+        /* Input specific styles */
+        input[list] {
+            padding: 6px;
+            border: 2px solid var(--panel-border);
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: #eee;
+            color: #000;
+            width: 100%; 
+            box-sizing: border-box;
+            border-radius: 4px;
+            font-family: inherit;
+            padding-right: 30px; /* Space for the clear button */
+        }
+
+        /* --- CUSTOM DROPDOWN STYLES --- */
+.input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+/* The actual list container */
+.custom-dropdown-list {
+    display: none; /* Hidden by default */
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--panel-bg);
+    border: 2px solid var(--panel-border);
+    border-top: none;
+    max-height: 150px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Individual items in the list */
+.dropdown-item {
+    padding: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #eee;
+    color: var(--text-color);
+    background: var(--panel-bg);
+}
+
+.dropdown-item:hover {
+    background-color: var(--accent-p1);
+    color: white;
+}
+
+
+        
+        select, button, input[type=number] {
+            padding: 6px;
+            border: 2px solid var(--panel-border);
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: #eee;
+            color: #000;
+            width: 100%; 
+            box-sizing: border-box;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        /* GOD MODE STYLES */
+.btn-god {
+    font-size: 0.9rem;
+    min-width: 40px;
+    padding: 5px;
+    background-color: #444;
+}
+.btn-god.active {
+    filter: brightness(1.2);
+    box-shadow: 0 0 8px currentColor; /* Glow effect */
+    border-color: white;
+}
+#gp-zap.active { background-color: #00c3ff; color: #000; }
+#gp-heal.active { background-color: #2ed573; color: #000; }
+#gp-boom.active { background-color: #ffa502; color: #000; }
+
+        /* Clear button overlay style */
+        .clear-input-btn {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            line-height: 1;
+            font-size: 1.2rem;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            z-index: 2;
+            transition: color 0.1s;
+        }
+        .clear-input-btn:hover {
+            color: var(--accent-p1);
+        }
+        
+
+        button {
+            text-transform: uppercase;
+            /* MODIFIED: Changed to a cleaner font for better readability */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-weight: 800; /* Keep it bold for the game aesthetic */
+            letter-spacing: 0.5px;
+            font-size: 0.9rem;
+            transition: transform 0.1s;
+            width: auto;
+            white-space: nowrap;
+        }
+        .btn-fight { background-color: #ff4757; color: white; border-color: #000; width: 100px; }
+        .btn-reset { background-color: #2f3542; color: white; border-color: #000; width: 100px; }
+        .btn-clear { background-color: #747d8c; color: white; border-color: #000; width: 100px; } /* New clear button style */
+        .btn-toggle { background-color: #747d8c; color: white; font-size: 0.75rem; }
+        .btn-toggle.active { background-color: #2ed573; }
+        /* UPDATED: Flexible time buttons */
+        .btn-time { 
+            background-color: #a4b0be; 
+            font-size: 0.75rem; 
+            min-width: 35px; 
+            width: auto; 
+            padding: 5px;
+            flex-grow: 1; /* Distribute space evenly */
+            margin: 1px;
+        }
+        .btn-time.active { background-color: #ffa502; color: white; border-color: #000;}
+
+        button:active { transform: scale(0.95); }
+
+        /* --- NEW: Add/Remove Button Styles --- */
+
+/* Adjust input padding to fit 3 icons (Eye, X, Trash) */
+input[list] {
+    padding-right: 90px !important; /* Increased from 60px */
+}
+
+/* The Remove (Trash) Button */
+.btn-remove-slot {
+    position: absolute;
+    right: 5px; /* Far right */
+    top: 50%;
+    transform: translateY(-50%);
+    width: 25px;
+    height: 25px;
+    line-height: 1;
+    font-size: 1rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #e74c3c; /* Red color */
+    z-index: 3;
+    transition: transform 0.2s;
+}
+.btn-remove-slot:hover {
+    transform: translateY(-50%) scale(1.2);
+    color: #c0392b;
+}
+
+/* Shift the existing Clear (X) button to the left slightly */
+.clear-input-btn {
+    right: 35px !important; /* Moved left to make room for trash */
+}
+
+/* Shift the Track (Eye) button to the left slightly */
+.btn-track {
+    right: 60px !important; /* Moved left */
+}
+
+/* The Big "Add Fighter" Button at the bottom */
+/* Keeps the Add button stuck to the bottom of the scrollable box */
+.btn-add-slot {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto; /* Pushes it to the bottom of the flex container */
+    z-index: 10;
+    box-shadow: 0 -5px 10px rgba(0,0,0,0.1); /* Subtle shadow so it looks "above" the scrolling items */
+}
+.btn-add-slot:hover {
+    background-color: #555555;
+}
+
+        .btn-close-modal {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background: transparent;
+            border: none;
+            color: var(--text-color);
+            font-size: 1.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            width: auto;
+            z-index: 20;
+            transition: transform 0.1s, color 0.1s;
+        }
+        .btn-close-modal:hover {
+            color: #d62626; /* Turn red on hover */
+            transform: scale(1.2);
+        }
+
+        /* Game Container */
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            width: 600px;
+            max-width: 100%;
+            height: auto;
+        }
+
+        canvas {
+            background-color: var(--panel-bg);
+            border: 4px solid var(--panel-border);
+            display: block;
+            touch-action: none;
+            transition: background 0.3s;
+            width: 100%; 
+            height: auto; 
+            cursor: grab;
+            box-sizing: border-box;
+        }
+        canvas:active { cursor: grabbing; }
+
+        /* Result Popup */
+        #resultModal {
+    display: none;
+    position: fixed; /* Changed from absolute to fixed */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--panel-bg);
+    border: 4px solid var(--panel-border);
+    padding: 20px;
+    text-align: center;
+    z-index: 2000; /* Increased to ensure it's on top of everything */
+    box-shadow: 10px 10px 0px rgba(0,0,0,0.5);
+    color: var(--text-color);
+    width: 80%;
+    max-width: 300px;
+}
+        #resultText {
+            font-family: var(--ui-font);
+            font-size: 2.5rem;
+            margin: 0 0 20px 0;
+            -webkit-text-stroke: 1px var(--panel-border);
+        }
+
+        /* ... existing styles ... */
+
+        /* NEW: Camera Controls Container */
+        .camera-controls {
+    display: flex;
+    gap: 5px;
+    margin-top: 0; /* Remove top margin so it attaches to canvas */
+    padding: 5px;
+    background: #333; /* Dark strip to match the border */
+    justify-content: center;
+    width: 100%; /* Fill the container */
+    box-sizing: border-box;
+    border: 4px solid var(--panel-border);
+    border-top: none; /* Merge visually with canvas */
+}
+
+/* Fix input alignment for the eye button */
+.p1-input, .p2-input {
+    padding-right: 55px !important; /* Force space for buttons */
+}
+
+        /* NEW: Track Button (The eye icon in the squad list) */
+        .btn-track {
+            position: absolute;
+            right: 30px; /* To the left of the clear button */
+            top: 50%;
+            transform: translateY(-50%);
+            width: 25px;
+            height: 25px;
+            padding: 0;
+            line-height: 1;
+            font-size: 1rem;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            z-index: 2;
+            opacity: 0.3; /* Faded when inactive */
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        .btn-track:hover { opacity: 0.8; transform: translateY(-50%) scale(1.1); }
+        .btn-track.active { opacity: 1.0; filter: drop-shadow(0 0 2px gold); transform: translateY(-50%) scale(1.2); }
+
+        /* Update input padding to make room for 2 buttons */
+        input[list] {
+            padding-right: 60px; /* Increased from 30px to fit Eye + X buttons */
+        }
+
+        .divider {
+            width: 1px;
+            height: 40px;
+            background: #ccc;
+            margin: 0 5px;
+            display: none; 
+        }
+        @media (min-width: 900px) {
+            .divider { display: block; }
+        }
+
+        /* Footer Style */
+        .footer {
+            margin-top: 20px;
+            padding: 10px 0;
+            font-size: 0.75rem;
+            opacity: 0.7;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            border-top: 1px solid var(--panel-border);
+        }
+        .footer a {
+            color: var(--text-color);
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .footer a:hover {
+            opacity: 0.9;
+        }
+        /* Mobile Layout Adjustments */
+        @media (max-width: 900px) {
+            .main-layout { flexDirection: column; alignItems: center; }
+            #gameContainer { order: 1; margin-bottom: 20px; }
+            .stats-panel { order: 2; width: 90%; max-width: 600px; flex-direction: row; flex-wrap: wrap; gap: 10px; font-size: 0.8rem;}
+            .stats-panel h3 { width: 100%; text-align: center; margin-bottom: 5px; }
+            .controls { justify-content: center; }
+            .squad-column { width: 45%; min-width: 140px; }
+            .settings-group { 
+            width: 100%; 
+            flex-direction: row; 
+            justify-content: center; 
+            flex-wrap: wrap; /* Add wrap to fix the top buttons too */
+        }
+
+        /* NEW: Force specific groups to stay vertical on mobile */
+        .settings-group.vertical-mobile {
+            flex-direction: column !important;
+            gap: 8px; /* Add breathing room between rows */
+        }
+        }
+        .control-row {
+    display: none;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+}
+
+/* Tab button styling */
+.tab-btn {
+    flex: 1;
+    padding: 10px;
+    background: #444;
+    color: white;
+    border: 2px solid #000;
+}
+
+.tab-btn.active-tab {
+    background: #2ed573; /* Green for active */
+    color: black;
+}
+#row-3.control-row {
+    flex-direction: row; /* Ensure VS stays in the middle */
+    align-items: flex-start;
+}
+.tab-nav-container {
+    display: flex;
+    flex-direction: row; /* Force horizontal */
+    flex-wrap: nowrap;   /* Prevent wrapping to second line */
+    justify-content: center;
+    width: 100%;
+    gap: 5px;
+    margin-bottom: 10px;
+    overflow-x: auto;    /* Adds a scrollbar on tiny screens instead of breaking */
+}
+
+.tab-btn {
+    flex: 1;             /* Stretch to fill space */
+    min-width: 80px;     /* Minimum size so text doesn't squish */
+    padding: 8px 5px;
+    white-space: nowrap; /* Keep text on one line */
+    font-size: 0.85rem;
+}
+/* --- VOLUME SLIDERS --- */
+.volume-panel {
+    width: 100%;
+    max-width: 650px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px;
+    border: 2px solid var(--panel-border);
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 6px;
+}
+
+.volume-control {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 170px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.volume-control span {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.volume-control input[type="range"] {
+    width: 100%;
+    cursor: pointer;
+    accent-color: var(--accent-p1);
+}
+/* --- ARCADE SQUAD BUILDER: MATCHES MAIN UI --- */
+.squad-section {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    gap: 18px;
+    margin-top: 10px;
+    padding-top: 12px;
+    border-top: 3px solid var(--panel-border);
+}
+
+.squad-section > span {
+    font-family: var(--ui-font);
+    text-transform: uppercase;
+    align-self: center;
+    font-size: 1.7rem !important;
+    text-shadow: 2px 2px 0 var(--panel-bg), 3px 3px 0 var(--panel-border);
+}
+
+.squad-column {
+    height: 300px;
+max-height: 300px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    min-width: 260px;
+    padding: 12px;
+    gap: 10px;
+    border: 3px solid var(--panel-border);
+    border-radius: 8px;
+    background: var(--panel-bg);
+    box-shadow: 5px 5px 0 rgba(0,0,0,0.22);
+}
+
+body.dark-mode .squad-column {
+    background: var(--panel-bg);
+    border-color: var(--panel-border);
+}
+
+.squad-modern-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 2px;
+    border: 3px solid var(--panel-border);
+    border-radius: 6px;
+    background: var(--panel-bg);
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.18);
+}
+
+.squad-modern-header.left {
+    border-left: 8px solid var(--accent-p1);
+}
+
+.squad-modern-header.right {
+    border-left: 8px solid var(--accent-p2);
+}
+
+.squad-modern-title {
+    font-family: var(--ui-font);
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    line-height: 1;
+}
+
+.squad-modern-subtitle {
+    margin-top: 3px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    opacity: 0.75;
+}
+
+.btn-add-slot.compact {
+    position: static;
+    margin: 0;
+    padding: 7px 12px;
+    border: 2px solid #000;
+    border-radius: 5px;
+    background: #2ed573;
+    color: #000;
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.25);
+    font-family: var(--ui-font);
+    letter-spacing: 1px;
+}
+
+.fighter-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border: 3px solid var(--panel-border);
+    border-radius: 7px;
+    background: var(--panel-bg);
+    box-shadow: 4px 4px 0 rgba(0,0,0,0.18);
+}
+
+body.dark-mode .fighter-card {
+    background: var(--panel-bg);
+    border-color: var(--panel-border);
+}
+
+.fighter-card-top {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.fighter-number-badge {
+    min-width: 34px;
+    padding: 5px 7px;
+    border: 2px solid #000;
+    border-radius: 999px;
+    text-align: center;
+    font-family: var(--ui-font);
+    font-size: 0.75rem;
+    color: #fff;
+    background: #2f3542;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.22);
+}
+
+.fighter-card-title {
+    font-family: var(--ui-font);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.fighter-card-ability {
+    margin-top: 3px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fighter-select-wrap {
+    position: relative;
+}
+
+.modern-fighter-input {
+    width: 100%;
+    border-radius: 5px !important;
+    padding: 8px 68px 8px 10px !important;
+    border: 2px solid var(--panel-border) !important;
+    background: #eee !important;
+    color: #000 !important;
+    font-weight: 800 !important;
+    box-shadow: inset 2px 2px 0 rgba(0,0,0,0.08);
+    box-sizing: border-box !important;
+max-width: 100% !important;
+display: block !important;
+padding-right: 36px !important;
+}
+
+body.dark-mode .modern-fighter-input {
+    background: #111 !important;
+    color: #fff !important;
+    border-color: var(--panel-border) !important;
+}
+
+.fighter-card-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.fighter-card-stats span {
+    padding: 6px 8px;
+    border: 2px solid var(--panel-border);
+    border-radius: 5px;
+    background: rgba(0,0,0,0.05);
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+body.dark-mode .fighter-card-stats span {
+    background: rgba(255,255,255,0.08);
+}
+
+.fighter-card-stats b {
+    float: right;
+}
+
+.fighter-card-desc {
+    font-size: 0.76rem;
+    line-height: 1.25;
+    opacity: 0.86;
+}
+
+.modern-track,
+.modern-remove {
+    position: static !important;
+    transform: none !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 6px 8px !important;
+    border-radius: 5px !important;
+    border: 2px solid #000 !important;
+    font-family: var(--ui-font) !important;
+    font-size: 0.65rem !important;
+    letter-spacing: 0.6px;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.25);
+}
+
+.modern-track {
+    background: #74c0fc !important;
+    color: #000 !important;
+}
+
+.modern-remove {
+    background: #ff6b6b !important;
+    color: #000 !important;
+}
+
+.modern-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 2px solid rgba(0,0,0,0.12);
+}
+
+.modern-dropdown-item small {
+    display: block;
+    opacity: 0.7;
+    font-size: 0.68rem;
+}
+
+/* --- GENERATED FIGHTER PORTRAITS: WEAPONS + ACCESSORIES --- */
+.fighter-portrait {
+    --portrait-color: #747d8c;
+    --portrait-accent: #fff;
+    width: 48px;
+    height: 48px;
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.fighter-portrait.tiny {
+    width: 34px;
+    height: 34px;
+}
+
+.fighter-portrait.large {
+    width: 88px;
+    height: 88px;
+    margin: 0 auto 8px auto;
+}
+
+.portrait-core {
+    width: 78%;
+    height: 78%;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-family: var(--ui-font);
+    font-size: 0.72rem;
+    letter-spacing: 0.5px;
+    background:
+        radial-gradient(circle at 35% 28%, rgba(255,255,255,0.45), transparent 28%),
+        var(--portrait-color);
+    border: 3px solid #000;
+    outline: 2px solid var(--portrait-accent);
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.3);
+    z-index: 2;
+}
+
+.fighter-portrait.large .portrait-core {
+    font-size: 1.15rem;
+    border-width: 4px;
+}
+
+.portrait-ring {
+    position: absolute;
+    inset: 1px;
+    border-radius: 50%;
+    border: 2px solid var(--portrait-accent);
+    z-index: 1;
+}
+
+.portrait-accessory,
+.portrait-weapon,
+.portrait-weapon::before,
+.portrait-weapon::after,
+.portrait-accessory::before,
+.portrait-accessory::after {
+    content: "";
+    position: absolute;
+    box-sizing: border-box;
+}
+
+/* Default tiny weapon */
+.portrait-weapon {
+    right: -3px;
+    bottom: 5px;
+    width: 20px;
+    height: 6px;
+    border: 2px solid #000;
+    border-radius: 999px;
+    background: var(--portrait-accent);
+    transform: rotate(-25deg);
+    z-index: 4;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.25);
+}
+
+.fighter-portrait.tiny .portrait-weapon {
+    width: 13px;
+    height: 5px;
+    border-width: 1px;
+}
+
+/* Unarmed: boxing gloves */
+.portrait-unarmed,
+.portrait-grower,
+.portrait-regenerator {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    right: -3px;
+    bottom: 7px;
+    background: var(--portrait-accent);
+}
+
+.portrait-unarmed::before,
+.portrait-grower::before,
+.portrait-regenerator::before {
+    width: 13px;
+    height: 13px;
+    border: 2px solid #000;
+    border-radius: 50%;
+    background: var(--portrait-accent);
+    left: -15px;
+    top: -4px;
+}
+
+/* Soldier / gun users */
+.portrait-soldier,
+.portrait-dualist,
+.portrait-turret {
+    width: 26px;
+    height: 7px;
+    right: -6px;
+    bottom: 8px;
+    border-radius: 2px;
+    background: #222;
+}
+
+.portrait-soldier::after,
+.portrait-dualist::after {
+    width: 8px;
+    height: 10px;
+    left: 6px;
+    top: 5px;
+    background: #222;
+    border: 2px solid #000;
+    border-top: 0;
+    transform: skew(-10deg);
+}
+
+.portrait-dualist::before {
+    width: 24px;
+    height: 6px;
+    left: -18px;
+    top: -10px;
+    border: 2px solid #000;
+    background: #222;
+    transform: rotate(35deg);
+}
+
+/* Bow */
+.portrait-bow {
+    width: 24px;
+    height: 30px;
+    right: -4px;
+    bottom: 3px;
+    border: 3px solid #000;
+    border-left-color: transparent;
+    border-radius: 50%;
+    background: transparent;
+    transform: rotate(12deg);
+}
+
+.portrait-bow::before {
+    width: 2px;
+    height: 28px;
+    right: 9px;
+    top: -1px;
+    background: #000;
+}
+
+.portrait-bow::after {
+    width: 24px;
+    height: 3px;
+    right: 3px;
+    top: 13px;
+    background: var(--portrait-accent);
+    border: 1px solid #000;
+}
+
+/* Swords / blades */
+.portrait-knight,
+.portrait-samurai,
+.portrait-rogue,
+.portrait-lance,
+.portrait-fight-knight {
+    width: 6px;
+    height: 34px;
+    right: 0;
+    bottom: 0;
+    border-radius: 3px;
+    background: #dfe6e9;
+    border: 2px solid #000;
+    transform: rotate(38deg);
+}
+
+.portrait-knight::after,
+.portrait-samurai::after,
+.portrait-rogue::after,
+.portrait-lance::after,
+.portrait-fight-knight::after {
+    width: 18px;
+    height: 5px;
+    left: -8px;
+    bottom: 3px;
+    border: 2px solid #000;
+    background: var(--portrait-accent);
+}
+
+.portrait-fight-knight {
+    width: 12px;
+    height: 38px;
+    background: #576574;
+}
+
+.portrait-lance {
+    height: 44px;
+    width: 4px;
+    right: -1px;
+}
+
+/* Scythe */
+.portrait-scythe {
+    width: 5px;
+    height: 38px;
+    right: 3px;
+    bottom: -2px;
+    background: #333;
+    border: 2px solid #000;
+    transform: rotate(35deg);
+}
+
+.portrait-scythe::before {
+    width: 24px;
+    height: 18px;
+    right: -18px;
+    top: -5px;
+    border: 4px solid #dfe6e9;
+    border-left-color: transparent;
+    border-bottom-color: transparent;
+    border-radius: 50%;
+}
+
+/* Laser blaster */
+.portrait-laser {
+    width: 28px;
+    height: 10px;
+    right: -7px;
+    bottom: 9px;
+    background: #222;
+    border: 2px solid #000;
+    border-radius: 3px;
+}
+
+.portrait-laser::before {
+    width: 10px;
+    height: 10px;
+    right: -8px;
+    top: -2px;
+    border-radius: 50%;
+    background: #ff4757;
+    border: 2px solid #000;
+    box-shadow: 0 0 8px #ff4757;
+}
+
+/* Wizard / magic staff */
+.portrait-wizard,
+.portrait-necromancer,
+.portrait-whispers,
+.portrait-alchemist {
+    width: 5px;
+    height: 34px;
+    right: 1px;
+    bottom: 0;
+    background: #5d4037;
+    border: 2px solid #000;
+    transform: rotate(30deg);
+}
+
+.portrait-wizard::before,
+.portrait-necromancer::before,
+.portrait-whispers::before,
+.portrait-alchemist::before {
+    width: 13px;
+    height: 13px;
+    right: -6px;
+    top: -8px;
+    border-radius: 50%;
+    background: var(--portrait-accent);
+    border: 2px solid #000;
+    box-shadow: 0 0 8px var(--portrait-accent);
+}
+
+/* Pirate cannon */
+.portrait-pirate {
+    width: 30px;
+    height: 13px;
+    right: -8px;
+    bottom: 8px;
+    background: #2f3542;
+    border: 2px solid #000;
+    border-radius: 999px 4px 4px 999px;
+}
+
+.portrait-pirate::before {
+    width: 10px;
+    height: 10px;
+    left: -4px;
+    bottom: -6px;
+    border-radius: 50%;
+    background: #000;
+}
+
+/* Engineer turret */
+.portrait-engineer {
+    width: 24px;
+    height: 18px;
+    right: -5px;
+    bottom: 5px;
+    background: #e17055;
+    border: 2px solid #000;
+    border-radius: 4px;
+}
+
+.portrait-engineer::before {
+    width: 22px;
+    height: 6px;
+    right: -15px;
+    top: 4px;
+    background: #333;
+    border: 2px solid #000;
+}
+
+/* Trapper bear trap */
+.portrait-trapper {
+    width: 26px;
+    height: 14px;
+    right: -6px;
+    bottom: 5px;
+    border: 3px solid #000;
+    border-top: 0;
+    border-radius: 0 0 50% 50%;
+    background: transparent;
+}
+
+.portrait-trapper::before,
+.portrait-trapper::after {
+    width: 6px;
+    height: 12px;
+    top: -8px;
+    background: #000;
+}
+
+.portrait-trapper::before { left: 4px; transform: rotate(-35deg); }
+.portrait-trapper::after { right: 4px; transform: rotate(35deg); }
+
+/* Orbiter bits */
+.portrait-orbiter::before,
+.portrait-orbiter::after {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--portrait-accent);
+    border: 2px solid #000;
+}
+
+.portrait-orbiter::before {
+    right: 2px;
+    top: -4px;
+}
+
+.portrait-orbiter::after {
+    left: -5px;
+    bottom: 8px;
+}
+
+/* Vampire fangs */
+.portrait-vampire {
+    width: 22px;
+    height: 10px;
+    right: -5px;
+    bottom: 8px;
+    background: #111;
+    border: 2px solid #000;
+    border-radius: 999px;
+}
+
+.portrait-type-vampire .portrait-accessory::before,
+.portrait-type-vampire .portrait-accessory::after {
+    width: 0;
+    height: 0;
+    top: 30px;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 12px solid #fff;
+    z-index: 5;
+}
+
+.portrait-type-vampire .portrait-accessory::before { left: 18px; }
+.portrait-type-vampire .portrait-accessory::after { right: 18px; }
+
+/* Spatial portal ring */
+.portrait-spatial {
+    width: 26px;
+    height: 26px;
+    right: -6px;
+    bottom: 3px;
+    border: 4px solid var(--portrait-accent);
+    border-left-color: transparent;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: 0 0 8px var(--portrait-accent);
+}
+
+/* Swarm dots */
+.portrait-swarm {
+    width: 7px;
+    height: 7px;
+    right: 2px;
+    bottom: 10px;
+    border-radius: 50%;
+    background: #000;
+}
+
+.portrait-swarm::before,
+.portrait-swarm::after {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #000;
+}
+
+.portrait-swarm::before {
+    left: -14px;
+    top: -8px;
+}
+
+.portrait-swarm::after {
+    left: -6px;
+    top: 9px;
+}
+
+/* Grabber hook */
+.portrait-grabber {
+    width: 28px;
+    height: 5px;
+    right: -6px;
+    bottom: 10px;
+    background: #333;
+    border: 2px solid #000;
+}
+
+.portrait-grabber::before {
+    width: 13px;
+    height: 13px;
+    right: -9px;
+    top: -8px;
+    border: 3px solid #333;
+    border-left-color: transparent;
+    border-radius: 50%;
+}
+
+/* Bard guitar */
+.portrait-bard {
+    width: 10px;
+    height: 28px;
+    right: 3px;
+    bottom: 2px;
+    background: #8b4513;
+    border: 2px solid #000;
+    transform: rotate(35deg);
+}
+
+.portrait-bard::before {
+    width: 16px;
+    height: 16px;
+    left: -6px;
+    bottom: -6px;
+    border-radius: 50%;
+    background: #a0522d;
+    border: 2px solid #000;
+}
+
+/* Chameleon / adapto scanner eye */
+.portrait-chameleon,
+.portrait-adapto,
+.portrait-chrono,
+.portrait-duplicator,
+.portrait-devourer {
+    width: 18px;
+    height: 18px;
+    right: -4px;
+    bottom: 8px;
+    border-radius: 50%;
+    background: var(--portrait-accent);
+    border: 3px solid #000;
+}
+
+.portrait-chameleon::before,
+.portrait-adapto::before,
+.portrait-chrono::before,
+.portrait-duplicator::before,
+.portrait-devourer::before {
+    width: 6px;
+    height: 6px;
+    left: 3px;
+    top: 3px;
+    border-radius: 50%;
+    background: #000;
+}
+
+/* Preview panel should also match arcade UI */
+.fighter-preview-card {
+    text-align: center;
+    font-family: inherit;
+}
+
+.fighter-preview-title {
+    font-family: var(--ui-font);
+    text-transform: uppercase;
+    font-size: 1.15rem;
+    letter-spacing: 1px;
+}
+
+.fighter-preview-ability {
+    margin-top: 4px;
+    font-size: 0.8rem;
+    opacity: 0.82;
+    font-weight: 800;
+}
+
+.fighter-preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.fighter-preview-grid div {
+    padding: 8px;
+    border: 2px solid var(--panel-border);
+    border-radius: 5px;
+    background: rgba(0,0,0,0.05);
+}
+
+body.dark-mode .fighter-preview-grid div {
+    background: rgba(255,255,255,0.08);
+}
+
+.fighter-preview-grid span {
+    display: block;
+    font-size: 0.68rem;
+    opacity: 0.7;
+    text-transform: uppercase;
+    font-weight: 900;
+}
+
+.fighter-preview-grid b {
+    display: block;
+    margin-top: 2px;
+}
+
+.fighter-preview-desc {
+    margin-top: 10px;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    opacity: 0.88;
+}
+
+/* --- CAMERA JUMP CONTROL: ARCADE STYLE --- */
+.camera-jump {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 6px;
+    border: 2px solid #000;
+    border-radius: 5px;
+    background: #2f3542;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.25);
+}
+
+.camera-jump input {
+    width: 52px;
+    height: 28px;
+    text-align: center;
+    border-radius: 4px;
+    border: 2px solid #000;
+    background: #eee;
+    color: #111;
+    font-weight: 900;
+    padding: 2px;
+}
+
+/* Mobile fix */
+@media (max-width: 900px) {
+    .squad-section {
+        flex-direction: column;
+    }
+
+    .squad-column {
+        width: 100% !important;
+        min-width: 0;
+        height: 420px;
+        max-height: 420px;
+    }
+
+    .fighter-card-top {
+        grid-template-columns: auto auto 1fr;
+    }
+
+    .modern-track,
+    .modern-remove {
+        grid-row: 2;
+    }
+}
+/* --- FIGHTER SEARCH MINI BUTTONS --- */
+.fighter-select-wrap {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.fighter-clear-btn,
+.fighter-random-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 2px solid #000;
+    border-radius: 4px;
+    color: #000;
+    font-family: var(--ui-font);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 20;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.22);
+}
+
+.fighter-clear-btn {
+    right: 7px;
+    background: #ff6b6b;
+}
+
+.fighter-random-btn {
+    right: 37px;
+    background: #ffd43b;
+}
+
+.fighter-clear-btn:hover,
+.fighter-random-btn:hover {
+    filter: brightness(1.08);
+}
+
+.fighter-clear-btn:active,
+.fighter-random-btn:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+.fighter-clear-btn {
+    position: absolute;
+    right: 7px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 2px solid #000;
+    border-radius: 4px;
+    background: #ff6b6b;
+    color: #000;
+    font-family: var(--ui-font);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 5;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.22);
+}
+
+.fighter-clear-btn:hover {
+    filter: brightness(1.08);
+}
+
+.fighter-clear-btn:active {
+    transform: translateY(-50%) scale(0.95);
+}
+/* --- DROPDOWN PORTRAIT ALIGNMENT FIX --- */
+.modern-dropdown-item {
+    display: grid !important;
+    grid-template-columns: 58px 1fr;
+    align-items: center;
+    gap: 8px;
+    min-height: 58px;
+    padding: 6px 8px;
+    overflow: visible;
+}
+
+.dropdown-portrait-box {
+    width: 58px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    position: relative;
+    overflow: visible;
+    flex-shrink: 0;
+}
+
+.dropdown-portrait-box .fighter-portrait.tiny {
+    width: 46px;
+    height: 46px;
+    margin: 0;
+    position: relative;
+    transform: scale(0.86);
+    transform-origin: center center;
+}
+
+.dropdown-portrait-box .portrait-core {
+    z-index: 3;
+}
+
+.dropdown-portrait-box .portrait-weapon,
+.dropdown-portrait-box .portrait-accessory {
+    z-index: 4;
+}
+
+.dropdown-fighter-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.dropdown-fighter-text strong {
+    font-family: var(--ui-font);
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+.dropdown-fighter-text small {
+    margin-top: 3px;
+    font-size: 0.68rem;
+    opacity: 0.75;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* --- BATTLE RECAP --- */
+#resultModal {
+    max-width: 520px;
+}
+
+.battle-recap {
+    text-align: left;
+    margin-top: 10px;
+}
+
+.battle-recap-title {
+    font-family: var(--ui-font);
+    text-align: center;
+    text-transform: uppercase;
+    font-size: 1.35rem;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    color: gold;
+    text-shadow: 2px 2px 0 #000;
+}
+
+.battle-recap-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.recap-card {
+    border: 3px solid var(--panel-border);
+    background: rgba(0,0,0,0.05);
+    padding: 8px;
+    border-radius: 5px;
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.2);
+}
+
+body.dark-mode .recap-card {
+    background: rgba(255,255,255,0.08);
+}
+
+.recap-card.wide {
+    grid-column: 1 / -1;
+}
+
+.recap-card span {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+
+.recap-card b {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.9rem;
+}
+
+/* --- ARENA PRESET PANEL --- */
+.arena-preset-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin-top: 5px;
+    padding: 6px;
+    border: 2px solid var(--panel-border);
+    background: rgba(0,0,0,0.05);
+    border-radius: 5px;
+}
+
+.arena-preset-panel button {
+    font-size: 0.68rem;
+    padding: 6px 4px;
+    background: #34495e;
+    color: #fff;
+    border-color: #000;
+}
+
+.arena-preset-panel button:nth-child(1) {
+    background: #7f8c8d;
+}
+
+.arena-preset-panel button:nth-child(2) {
+    background: #8e44ad;
+}
+
+.arena-preset-panel button:nth-child(3) {
+    background: #2c3e50;
+}
+
+.arena-preset-panel button:nth-child(4) {
+    background: #c0392b;
+}
+
+.arena-preset-panel button:nth-child(5) {
+    background: #d35400;
+    grid-column: 1 / -1;
+}
+/* --- FREE FOR ALL SQUAD LAYOUT --- */
+.squad-section.ffa-squad-mode {
+    justify-content: center;
+}
+
+.squad-section.ffa-squad-mode #p1SquadContainer {
+    flex: 0 1 620px;
+    max-width: 620px;
+    width: 100%;
+}
+
+.squad-section.ffa-squad-mode #p2SquadContainer,
+.squad-section.ffa-squad-mode #squadVsLabel {
+    display: none !important;
+}
