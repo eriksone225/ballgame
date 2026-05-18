@@ -4,6 +4,7 @@
         const resultText = document.getElementById('resultText');
         const themeBtn = document.getElementById('themeBtn');
         const soundBtn = document.getElementById('soundBtn');
+        const gameContainer = document.getElementById('gameContainer');
         // --- CAMERA STATE (NEW) ---
 const camera = {
     x: canvas.width / 2, // Center of world
@@ -547,6 +548,72 @@ function getPersistentBallName(side, index, type) {
 
 let projectileTrailsEnabled = true;
 
+// --- FULLSCREEN FOLDABLE CONTROL STATE ---
+const fullscreenPanelState = {
+    hudCollapsed: false,
+    cameraCollapsed: false
+};
+
+function syncSpeedButtons() {
+    const currentSpeed = Number(BASE_GAME_SPEED);
+
+    document.querySelectorAll('.fullscreen-speed-btn').forEach(btn => {
+        const speed = Number(btn.dataset.speed);
+        btn.classList.toggle('active', Math.abs(speed - currentSpeed) < 0.001);
+    });
+
+    document.querySelectorAll('.btn-time').forEach(btn => {
+        const clickText = btn.getAttribute('onclick') || '';
+        const match = clickText.match(/setTimeScale\(([^,\)]+)/);
+        const speed = match ? Number(match[1]) : NaN;
+        btn.classList.toggle('active', Math.abs(speed - currentSpeed) < 0.001);
+    });
+}
+
+function getSpeedLabel() {
+    const speed = Number(BASE_GAME_SPEED);
+    if (speed === 0) return 'Paused';
+    return `${speed}x`;
+}
+
+function applyFullscreenPanelClasses() {
+    if (!gameContainer) return;
+
+    const isFullscreen = isWatchFullscreenActive();
+
+    // Only keep collapsed panel classes while the dedicated watch fullscreen mode is active.
+    // This prevents the normal page camera bar from getting stuck in a half-collapsed state.
+    gameContainer.classList.toggle('fs-hud-collapsed', isFullscreen && fullscreenPanelState.hudCollapsed);
+    gameContainer.classList.toggle('fs-camera-collapsed', isFullscreen && fullscreenPanelState.cameraCollapsed);
+}
+
+function setFullscreenTimeScale(scale, btn) {
+    setTimeScale(scale, btn || null);
+    updateFullscreenHud();
+}
+
+function toggleFullscreenPanel(panelName) {
+    if (!gameContainer) return;
+
+    if (panelName === 'hud') {
+        fullscreenPanelState.hudCollapsed = !fullscreenPanelState.hudCollapsed;
+    }
+
+    if (panelName === 'camera') {
+        fullscreenPanelState.cameraCollapsed = !fullscreenPanelState.cameraCollapsed;
+    }
+
+    applyFullscreenPanelClasses();
+    updateFullscreenHud();
+}
+
+function setFullscreenPanelDefaults() {
+    if (!gameContainer) return;
+
+    applyFullscreenPanelClasses();
+    updateFullscreenHud();
+}
+
 function toggleCinematicCamera() {
     cinematicCameraEnabled = !cinematicCameraEnabled;
 
@@ -560,7 +627,245 @@ function toggleCinematicCamera() {
         camera.targetId = null;
         updateTrackButtons();
     }
+
+    if (typeof updateFullscreenHud === 'function') updateFullscreenHud();
 }
+
+
+
+function isTypingInTextField() {
+    const active = document.activeElement;
+    if (!active) return false;
+
+    const tag = active.tagName ? active.tagName.toLowerCase() : '';
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable;
+}
+
+function isWatchFullscreenActive() {
+    return !!(
+        gameContainer &&
+        (
+            document.fullscreenElement === gameContainer ||
+            gameContainer.classList.contains('watch-fullscreen')
+        )
+    );
+}
+
+function getFullscreenBattleStatusText() {
+    if (!entities || entities.length === 0) {
+        return 'Setup Mode — pick fighters first';
+    }
+
+    const liveFighters = entities.filter(e =>
+        e &&
+        e.hp > 0 &&
+        e.type !== 'turret' &&
+        e.type !== 'boid' &&
+        !e.parentId
+    );
+
+    if (GAME_MODE === 'ffa') {
+        return `${isSetupPhase ? 'Setup' : (gameOverTriggered ? 'Battle Ended' : 'Battle Running')} — Alive: ${liveFighters.length}`;
+    }
+
+    const leftAlive = liveFighters.filter(e => e.team === 1).length;
+    const rightAlive = liveFighters.filter(e => e.team === 2).length;
+
+    if (isSetupPhase) return `Setup Mode — Left ${leftAlive} | Right ${rightAlive}`;
+    if (gameOverTriggered) return `Battle Ended — Left ${leftAlive} | Right ${rightAlive}`;
+    return `Battle Running — Left ${leftAlive} | Right ${rightAlive}`;
+}
+
+function updateFullscreenHud() {
+    const isFullscreen = isWatchFullscreenActive();
+    applyFullscreenPanelClasses();
+
+    const btn = document.getElementById('fullscreenBtn');
+    const fightBtn = document.getElementById('fullscreenFightBtn');
+    const cineBtn = document.getElementById('fullscreenCineBtn');
+    const statusText = document.getElementById('fullscreenStatusText');
+    const hudToggleBtn = document.getElementById('fullscreenHudToggleBtn');
+    const cameraFoldBtn = document.getElementById('fullscreenCameraFoldBtn');
+    const cameraPeekBtn = document.getElementById('fullscreenCameraPeekBtn');
+
+    if (btn) {
+        btn.innerText = isFullscreen ? "Exit Fullscreen" : "Fullscreen";
+        btn.classList.toggle('active', isFullscreen);
+    }
+
+    if (fightBtn) {
+        if (gameOverTriggered) {
+            fightBtn.innerText = 'Start Again';
+            fightBtn.classList.remove('is-running');
+        } else if (isSetupPhase) {
+            fightBtn.innerText = 'Start Fight';
+            fightBtn.classList.remove('is-running');
+        } else {
+            fightBtn.innerText = 'Restart';
+            fightBtn.classList.add('is-running');
+        }
+    }
+
+    if (cineBtn) {
+        cineBtn.innerText = cinematicCameraEnabled ? 'Cine: ON' : 'Cine: OFF';
+        cineBtn.classList.toggle('active', cinematicCameraEnabled);
+    }
+
+    if (hudToggleBtn) {
+        hudToggleBtn.innerText = fullscreenPanelState.hudCollapsed ? 'Show HUD' : 'Hide HUD';
+        hudToggleBtn.title = fullscreenPanelState.hudCollapsed ? 'Show fullscreen controls' : 'Fold fullscreen controls';
+    }
+
+    if (cameraFoldBtn) {
+        // This button only appears while the dock is visible, so it should always be a hide action.
+        cameraFoldBtn.innerText = 'Hide Cam';
+        cameraFoldBtn.title = 'Hide camera controls';
+    }
+
+    if (cameraPeekBtn) {
+        cameraPeekBtn.innerText = 'Show Cam';
+        cameraPeekBtn.title = 'Show camera controls';
+    }
+
+    if (statusText) {
+        statusText.innerText = `${getFullscreenBattleStatusText()} — Speed: ${getSpeedLabel()}`;
+    }
+
+    syncSpeedButtons();
+}
+
+function updateFullscreenButton(isFullscreen) {
+    const btn = document.getElementById('fullscreenBtn');
+    const exitBtn = document.getElementById('fullscreenExitBtn');
+
+    if (btn) {
+        btn.innerText = isFullscreen ? "Exit Fullscreen" : "Fullscreen";
+        btn.classList.toggle('active', isFullscreen);
+    }
+
+    if (exitBtn) {
+        exitBtn.innerText = isFullscreen ? "Exit" : "Enter";
+    }
+
+    updateFullscreenHud();
+}
+
+function setWatchFullscreenState(isFullscreen) {
+    document.body.classList.toggle('watch-fullscreen-active', isFullscreen);
+
+    if (gameContainer) {
+        gameContainer.classList.toggle('watch-fullscreen', isFullscreen);
+
+        if (!isFullscreen) {
+            fullscreenPanelState.hudCollapsed = false;
+            fullscreenPanelState.cameraCollapsed = false;
+            gameContainer.classList.remove('fs-hud-collapsed', 'fs-camera-collapsed');
+        } else {
+            setFullscreenPanelDefaults();
+        }
+    }
+
+    updateFullscreenButton(isFullscreen);
+}
+
+function enterWatchFullscreen() {
+    if (!gameContainer) return;
+
+    // Start fullscreen with controls visible; the user can fold them again with H/C.
+    fullscreenPanelState.hudCollapsed = false;
+    fullscreenPanelState.cameraCollapsed = false;
+    setWatchFullscreenState(true);
+
+    if (gameContainer.requestFullscreen && document.fullscreenElement !== gameContainer) {
+        gameContainer.requestFullscreen().catch(err => {
+            console.warn('Browser fullscreen failed. Using theater fullscreen fallback:', err);
+            setWatchFullscreenState(true);
+        });
+    }
+}
+
+function exitWatchFullscreen() {
+    if (!gameContainer) return;
+
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(err => {
+            console.warn('Could not exit fullscreen:', err);
+            setWatchFullscreenState(false);
+        });
+    } else {
+        setWatchFullscreenState(false);
+    }
+}
+
+function toggleWatchFullscreen() {
+    if (!gameContainer) return;
+
+    if (isWatchFullscreenActive()) {
+        exitWatchFullscreen();
+        return;
+    }
+
+    enterWatchFullscreen();
+}
+
+function fullscreenFightAction() {
+    if (gameOverTriggered) {
+        playAgain();
+    } else if (isSetupPhase) {
+        beginBattle();
+    } else {
+        resetPositions();
+        beginBattle();
+    }
+
+    updateFullscreenHud();
+}
+
+function fullscreenResetAction() {
+    resetPositions();
+    updateFullscreenHud();
+}
+
+function fullscreenCineAction() {
+    toggleCinematicCamera();
+    updateFullscreenHud();
+}
+
+function startFightFullscreen() {
+    enterWatchFullscreen();
+    fullscreenFightAction();
+}
+
+document.addEventListener('fullscreenchange', () => {
+    setWatchFullscreenState(document.fullscreenElement === gameContainer);
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && gameContainer && gameContainer.classList.contains('watch-fullscreen') && !document.fullscreenElement) {
+        setWatchFullscreenState(false);
+        return;
+    }
+
+    if (event.key && event.key.toLowerCase() === 'f' && !isTypingInTextField()) {
+        toggleWatchFullscreen();
+        return;
+    }
+
+    if (isWatchFullscreenActive() && !isTypingInTextField()) {
+        const key = event.key ? event.key.toLowerCase() : '';
+
+        if (key === 'h') {
+            toggleFullscreenPanel('hud');
+            return;
+        }
+
+        if (key === 'c') {
+            toggleFullscreenPanel('camera');
+            return;
+        }
+    }
+});
+
 
 function toggleSlowMoBigHit() {
     slowMoBigHitEnabled = !slowMoBigHitEnabled;
@@ -2620,15 +2925,24 @@ let slowMoCooldown = 0;
 let battleStartFrame = 0;
 let battleTotalKills = 0;
 
-        function setTimeScale(scale, btn) {
-    BASE_GAME_SPEED = scale;
+        function setTimeScale(scale, btn = null) {
+    const numericScale = Number(scale);
+
+    BASE_GAME_SPEED = numericScale;
 
     if (slowMoTimer <= 0) {
-        GAME_SPEED = scale;
+        GAME_SPEED = numericScale;
     }
 
-    document.querySelectorAll('.btn-time').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    syncSpeedButtons();
+
+    if (btn) {
+        btn.classList.add('active');
+    }
+
+    if (typeof updateFullscreenHud === 'function') {
+        updateFullscreenHud();
+    }
 }
 
         
@@ -4225,6 +4539,7 @@ entities.forEach(e => {
 });
 
                         playBGM('battle');
+            if (typeof updateFullscreenHud === 'function') updateFullscreenHud();
         }
 
         // NEW: Function to handle 'Play Again'
@@ -4267,6 +4582,7 @@ entities.forEach(e => {
     modalTimeout = null;
 }
             playBGM('menu');
+            if (typeof updateFullscreenHud === 'function') updateFullscreenHud();
         }
         
         function clearSquads() {
@@ -4418,6 +4734,10 @@ if (slowMoTimer > 0) {
 
 
         function update() {
+
+    if (typeof updateFullscreenHud === 'function' && isWatchFullscreenActive && isWatchFullscreenActive() && frameCount % 15 === 0) {
+        updateFullscreenHud();
+    }
 
            // --- CAMERA LOGIC (SMOOTHER + REAL ZOOM) ---
     let targetX = camera.x;

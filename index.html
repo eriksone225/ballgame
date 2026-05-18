@@ -82,7 +82,9 @@
     </div>
 
     <div style="display:flex; gap:5px; flex-direction: column; justify-content: center; flex: 1; min-width: 200px; max-width: 400px;">
-        <button class="btn-fight" onclick="beginBattle()" style="width: 100%;">FIGHT!</button>
+        <div style="display:flex; gap:4px; width:100%;">
+            <button class="btn-fight" onclick="beginBattle()" style="flex:1; width:auto;">FIGHT!</button>
+        </div>
         <div style="display:flex; gap:2px;">
             <button class="btn-reset" onclick="resetPositions()" style="width: 33%;">RESET</button>
             <button class="btn-clear" onclick="clearSquads()" style="width: 33%;">CLEAR</button>
@@ -144,6 +146,7 @@
             <button id="nameBtn" class="btn-toggle" onclick="toggleCharacterNames()" style="width: auto;">Names: OFF</button>
             <button id="trailBtn" class="btn-toggle active" onclick="toggleProjectileTrails()" style="width: auto;">Trails: ON</button>
             <button id="cineBtn" class="btn-toggle" onclick="toggleCinematicCamera()" style="width: auto;">Cine Cam: OFF</button>
+            <button id="fullscreenBtn" class="btn-toggle" onclick="toggleWatchFullscreen()" style="width: auto;">Fullscreen</button>
 <button id="slowMoBtn" class="btn-toggle" onclick="toggleSlowMoBigHit()" style="width: auto;">Big Hit Slow-Mo: OFF</button>
             <button id="hitStopBtn" class="btn-toggle" onclick="toggleHitStop()" style="width: auto;">Hit Stop: OFF</button>
             <button id="bloodBtn" class="btn-toggle" onclick="toggleBlood()" style="width: auto;">Blood: OFF</button>
@@ -273,6 +276,31 @@
         <!-- Game -->
        <div id="gameContainer">
     <canvas id="gameCanvas" width="600" height="500"></canvas>
+    <div id="fullscreenHud">
+        <div class="fullscreen-panel-head">
+            <button id="fullscreenHudToggleBtn" class="fullscreen-fold-btn" onclick="toggleFullscreenPanel('hud')" title="Fold fullscreen controls">Hide</button>
+            <div id="fullscreenStatusText">Setup Mode — press Start Fight</div>
+        </div>
+
+        <div id="fullscreenHudBody" class="fullscreen-panel-body">
+            <div class="fullscreen-hud-buttons">
+                <button id="fullscreenFightBtn" class="btn-fight" onclick="fullscreenFightAction()">Start Fight</button>
+                <button id="fullscreenResetBtn" class="btn-reset" onclick="fullscreenResetAction()">Reset</button>
+                <button id="fullscreenCineBtn" class="btn-toggle" onclick="fullscreenCineAction()">Cine Cam</button>
+                <button id="fullscreenExitBtn" class="btn-toggle active" onclick="toggleWatchFullscreen()">Exit</button>
+            </div>
+
+            <div id="fullscreenSpeedControls" class="fullscreen-speed-controls" aria-label="Battle speed controls">
+                <span>Speed</span>
+                <button class="fullscreen-speed-btn" data-speed="0" onclick="setFullscreenTimeScale(0, this)">Pause</button>
+                <button class="fullscreen-speed-btn" data-speed="0.5" onclick="setFullscreenTimeScale(0.5, this)">0.5x</button>
+                <button class="fullscreen-speed-btn active" data-speed="1" onclick="setFullscreenTimeScale(1, this)">1x</button>
+                <button class="fullscreen-speed-btn" data-speed="1.5" onclick="setFullscreenTimeScale(1.5, this)">1.5x</button>
+                <button class="fullscreen-speed-btn" data-speed="2" onclick="setFullscreenTimeScale(2, this)">2x</button>
+                <button class="fullscreen-speed-btn" data-speed="3" onclick="setFullscreenTimeScale(3, this)">3x</button>
+            </div>
+        </div>
+    </div>
     <div id="resultModal">
     <button class="btn-close-modal" onclick="closeResultModal()" title="Close">&#215;</button>
     
@@ -283,7 +311,8 @@
         <button id="playAgainBtn" class="btn-fight" onclick="playAgain()">Play Again</button>
 </div>
 
-<div class="camera-controls">
+<div class="camera-controls" id="fullscreenCameraDock">
+    <button id="fullscreenCameraFoldBtn" class="btn-mini fullscreen-camera-fold" onclick="toggleFullscreenPanel('camera')" title="Hide camera controls">Hide Cam</button>
     <button class="btn-mini" onclick="adjustZoom(-0.1)" title="Zoom Out" style="width:40px; font-size:1.2rem;">-</button>
 
     <button class="btn-mini" onclick="cycleTarget(1)" title="Track Left Team" style="flex-grow:1; color: var(--accent-p1); border-right: 1px solid #555;">L Cam</button>
@@ -302,6 +331,7 @@
 
     <button class="btn-mini" onclick="adjustZoom(0.1)" title="Zoom In" style="width:40px; font-size:1.2rem;">+</button>
 </div>
+<button id="fullscreenCameraPeekBtn" class="fullscreen-peek-btn camera-peek" onclick="toggleFullscreenPanel('camera')" title="Show camera controls">Show Cam</button>
     
 </div>
         <!-- P2 Stats -->
