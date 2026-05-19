@@ -2292,3 +2292,3635 @@ body:not(.watch-fullscreen-active) #fullscreenCameraPeekBtn {
     background: rgba(255,255,255,0.35);
     border-radius: 999px;
 }
+
+
+/* --- CLEAN LAYOUT PATCH: normal camera dock + aligned custom tab --- */
+#gameContainer {
+    box-sizing: border-box !important;
+    width: 600px !important;
+    max-width: min(100%, 600px) !important;
+    overflow: visible !important;
+}
+
+#gameContainer canvas {
+    width: 100% !important;
+    display: block !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 6px !important;
+    box-sizing: border-box !important;
+    border: 4px solid var(--panel-border) !important;
+    border-top: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+    background: #333 !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock > button,
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+    height: 38px !important;
+    min-height: 38px !important;
+    margin: 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    border-radius: 5px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+    gap: 5px !important;
+    padding: 4px 6px !important;
+    background: #2f3542 !important;
+    border: 2px solid #000 !important;
+    color: #fff !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump span {
+    font-size: 0.66rem !important;
+    color: #fff !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump input {
+    width: 52px !important;
+    min-width: 52px !important;
+    height: 26px !important;
+    padding: 2px !important;
+    text-align: center !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump button {
+    height: 28px !important;
+    padding: 4px 7px !important;
+}
+
+@media (max-width: 720px) {
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+        grid-column: span 2 !important;
+    }
+}
+
+/* Custom tab cleanup: same-sized controls, centered rows */
+#row-3.control-row {
+    width: 100% !important;
+}
+
+#row-3 .customize-group {
+    width: min(100%, 620px) !important;
+    margin: 0 auto 14px auto !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+}
+
+#row-3 > div:not(.customize-group) {
+    width: min(100%, 900px) !important;
+    margin: 0 auto !important;
+    align-items: center !important;
+}
+
+#row-3 .settings-group {
+    width: 100% !important;
+    max-width: 900px !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: 180px 1fr 180px 1fr !important;
+    gap: 8px !important;
+    align-items: center !important;
+}
+
+#row-3 select,
+#row-3 button {
+    height: 40px !important;
+    min-height: 40px !important;
+    border-radius: 6px !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+}
+
+#row-3 .arena-preset-panel {
+    grid-column: 2 / 4 !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    padding: 8px !important;
+    border: 2px solid #000 !important;
+    border-radius: 8px !important;
+    background: rgba(0,0,0,0.04) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+#row-3 .arena-preset-panel button {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+#row-3 .arena-preset-panel button:last-child {
+    grid-column: 1 / -1 !important;
+}
+
+#row-3 .settings-group + .settings-group {
+    display: flex !important;
+    max-width: 240px !important;
+    margin: 10px auto 0 auto !important;
+}
+
+@media (max-width: 900px) {
+    #row-3 .settings-group {
+        grid-template-columns: 1fr 1fr !important;
+    }
+
+    #row-3 .arena-preset-panel {
+        grid-column: 1 / -1 !important;
+    }
+}
+
+@media (max-width: 560px) {
+    #row-3 .settings-group,
+    #row-3 .arena-preset-panel {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Fullscreen setup controls */
+#fullscreenSetupControls {
+    display: none;
+}
+
+#gameContainer.watch-fullscreen #fullscreenSetupControls {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    flex-wrap: wrap !important;
+    padding: 3px 4px !important;
+    border-radius: 12px !important;
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+}
+
+#gameContainer.watch-fullscreen #fullscreenSetupControls select,
+#gameContainer.watch-fullscreen #fullscreenSetupControls button,
+#gameContainer.watch-fullscreen #fullscreenSetupControls input {
+    height: 30px !important;
+    min-height: 30px !important;
+    width: auto !important;
+    min-width: 54px !important;
+    padding: 4px 7px !important;
+    border-radius: 9px !important;
+    font-size: 0.66rem !important;
+}
+
+#gameContainer.watch-fullscreen #fullscreenSetupControls select {
+    min-width: 92px !important;
+}
+
+#gameContainer.watch-fullscreen .fs-count-box {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    color: #fff !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+}
+
+#gameContainer.watch-fullscreen .fs-count-box input {
+    width: 48px !important;
+    min-width: 48px !important;
+    text-align: center !important;
+}
+
+#gameContainer.watch-fullscreen .fullscreen-mini-action {
+    background: rgba(255,255,255,0.88) !important;
+    color: #111 !important;
+    border-color: rgba(0,0,0,0.55) !important;
+}
+
+/* Fullscreen camera dock cleanup: compact, scrolls instead of overflowing. */
+#gameContainer.watch-fullscreen #fullscreenCameraDock {
+    max-width: min(860px, calc(100vw - 24px)) !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: nowrap !important;
+    scrollbar-width: thin !important;
+}
+
+#gameContainer.watch-fullscreen #fullscreenCameraDock > button {
+    flex: 0 0 auto !important;
+    min-width: 58px !important;
+}
+
+#gameContainer.watch-fullscreen #fullscreenCameraDock .camera-jump {
+    flex: 0 0 auto !important;
+}
+
+/* Normal mode never shows fullscreen-only peek. */
+body:not(.watch-fullscreen-active) #fullscreenCameraPeekBtn {
+    display: none !important;
+}
+
+
+
+/* --- VIEWPORT TIDY PATCH: keep controls + canvas visible without scrolling --- */
+html, body {
+    min-height: 100%;
+}
+
+body {
+    padding: 6px !important;
+    gap: 4px !important;
+}
+
+#mainTitle {
+    font-size: clamp(1.15rem, 3vw, 1.65rem) !important;
+    margin: 0 0 4px 0 !important;
+}
+
+#statusHeader {
+    max-width: 1040px !important;
+    min-height: 30px !important;
+    margin-bottom: 5px !important;
+    padding: 5px 10px !important;
+    border-width: 2px !important;
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.18) !important;
+}
+
+#killFeed {
+    height: 28px !important;
+    font-size: 0.72rem !important;
+}
+
+#toggleControlsBtn {
+    max-width: 1080px !important;
+    min-height: 28px !important;
+    padding: 4px 8px !important;
+    margin-bottom: 4px !important;
+}
+
+.controls {
+    max-width: 1080px !important;
+    min-height: 0 !important;
+    margin-bottom: 6px !important;
+    padding: 8px !important;
+    gap: 8px !important;
+    border-width: 2px !important;
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.16) !important;
+}
+
+.tab-nav-container {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+}
+
+.tab-btn {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 4px 8px !important;
+    font-size: 0.82rem !important;
+}
+
+.control-row {
+    width: 100% !important;
+}
+
+select, button, input[type=number], input[list] {
+    min-height: 32px !important;
+    padding: 4px 8px !important;
+    font-size: 0.8rem !important;
+}
+
+/* Custom tab: compact, aligned, same-height controls. */
+#row-3.control-row {
+    display: grid !important;
+    grid-template-columns: minmax(230px, 1.15fr) minmax(520px, 2.6fr) minmax(160px, 0.8fr) !important;
+    grid-template-areas:
+        "map presets god";
+    gap: 8px !important;
+    align-items: start !important;
+}
+
+#row-3 .customize-group {
+    grid-area: map !important;
+    width: 100% !important;
+    margin: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+}
+
+#row-3 > div:not(.customize-group) {
+    display: contents !important;
+}
+
+#row-3 > div:not(.customize-group) > .settings-group:first-child {
+    grid-area: presets !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: 180px 135px 115px minmax(210px, 1fr) 40px 100px 92px !important;
+    grid-auto-rows: 36px !important;
+    gap: 6px !important;
+    align-items: stretch !important;
+}
+
+#row-3 #obstacleSelect {
+    grid-column: 1 !important;
+}
+
+#row-3 #clearObsBtn {
+    width: 100% !important;
+}
+
+#row-3 .arena-preset-panel {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    padding: 6px !important;
+    border: 2px solid #000 !important;
+    border-radius: 6px !important;
+    background: rgba(0,0,0,0.04) !important;
+}
+
+#row-3 .arena-preset-panel button:last-child {
+    grid-column: auto !important;
+}
+
+#row-3 #weaponSelect {
+    grid-column: 4 !important;
+    margin: 0 !important;
+}
+
+#row-3 #weaponSelect + div {
+    grid-column: 5 / -1 !important;
+    display: grid !important;
+    grid-template-columns: 40px 1fr 1fr !important;
+    gap: 6px !important;
+    width: 100% !important;
+}
+
+#row-3 > div:not(.customize-group) > .settings-group:last-child {
+    grid-area: god !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 6px !important;
+    box-sizing: border-box !important;
+    border: 2px solid rgba(0,0,0,0.18) !important;
+    border-radius: 6px !important;
+    background: rgba(0,0,0,0.035) !important;
+}
+
+#row-3 select,
+#row-3 button {
+    height: 36px !important;
+    min-height: 36px !important;
+    margin: 0 !important;
+    border-radius: 5px !important;
+    box-sizing: border-box !important;
+}
+
+#row-3 .btn-god {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 2px !important;
+}
+
+#row-3 label {
+    margin: 0 0 3px 0 !important;
+}
+
+/* Game area: responsive to viewport height; camera dock stays inside the game box. */
+.main-layout {
+    max-width: 1080px !important;
+    width: 100% !important;
+    gap: 10px !important;
+    align-items: flex-start !important;
+    flex-wrap: nowrap !important;
+}
+
+.stats-panel {
+    width: 170px !important;
+    min-width: 150px !important;
+    padding: 8px !important;
+    font-size: 0.78rem !important;
+    border-width: 2px !important;
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.14) !important;
+}
+
+.stats-panel h3 {
+    margin-bottom: 5px !important;
+    padding-bottom: 3px !important;
+    font-size: 0.92rem !important;
+}
+
+#gameContainer:not(.watch-fullscreen) {
+    width: min(600px, calc((100vh - 248px) * 1.20), calc(100vw - 380px)) !important;
+    min-width: 430px !important;
+    max-width: 600px !important;
+    overflow: hidden !important;
+    border-radius: 0 !important;
+}
+
+#gameContainer:not(.watch-fullscreen) canvas {
+    width: 100% !important;
+    height: auto !important;
+    border-width: 4px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 5px !important;
+    box-sizing: border-box !important;
+    border: 4px solid var(--panel-border) !important;
+    border-top: 0 !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 5px !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    background: #333 !important;
+    scrollbar-width: thin !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock > button,
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+    height: 32px !important;
+    min-height: 32px !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    border-radius: 5px !important;
+    box-sizing: border-box !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock > button {
+    min-width: 50px !important;
+    padding: 3px 8px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock #fullscreenCameraFoldBtn {
+    display: none !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+    min-width: 156px !important;
+    padding: 3px 5px !important;
+    display: flex !important;
+    gap: 4px !important;
+    align-items: center !important;
+    background: #2f3542 !important;
+    border: 2px solid #000 !important;
+    color: #fff !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump span {
+    font-size: 0.62rem !important;
+    color: #fff !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump input {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    padding: 1px !important;
+    text-align: center !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump button {
+    height: 24px !important;
+    min-height: 24px !important;
+    padding: 2px 6px !important;
+}
+
+/* Smaller laptop fallback: hide stat side panels before forcing scroll. */
+@media (max-height: 720px), (max-width: 960px) {
+    .stats-panel {
+        display: none !important;
+    }
+
+    .main-layout {
+        justify-content: center !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) {
+        width: min(600px, calc((100vh - 238px) * 1.20), calc(100vw - 20px)) !important;
+        min-width: 360px !important;
+    }
+
+    #mainTitle {
+        font-size: 1.2rem !important;
+    }
+
+    #statusHeader {
+        display: none !important;
+    }
+}
+
+@media (max-width: 920px) {
+    #row-3.control-row {
+        grid-template-columns: 1fr !important;
+        grid-template-areas:
+            "map"
+            "presets"
+            "god" !important;
+    }
+
+    #row-3 > div:not(.customize-group) > .settings-group:first-child {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        grid-auto-rows: 34px !important;
+    }
+
+    #row-3 .arena-preset-panel,
+    #row-3 #weaponSelect,
+    #row-3 #weaponSelect + div {
+        grid-column: 1 / -1 !important;
+    }
+
+    .main-layout {
+        flex-wrap: wrap !important;
+    }
+}
+
+
+
+
+/* --- FINAL UI STABILIZATION PATCH: fixed-size tabs, internal scrolling, non-scroll camera dock --- */
+
+/* Make the whole control block a fixed-height panel. Rows that need more room scroll inside this panel. */
+.controls {
+    height: 150px !important;
+    max-height: 150px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    padding: 8px !important;
+    gap: 6px !important;
+    box-sizing: border-box !important;
+}
+
+.tab-nav-container {
+    flex: 0 0 34px !important;
+    height: 34px !important;
+    margin: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    overflow: hidden !important;
+}
+
+.tab-btn {
+    width: 100% !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 4px 8px !important;
+    font-size: 0.82rem !important;
+    line-height: 1 !important;
+}
+
+/* Important: old patches forced #row-3 to display all the time. This restores real tab behavior. */
+.control-row {
+    display: none !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: 96px !important;
+    max-height: 96px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 2px 4px 4px 4px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    align-content: flex-start !important;
+    scrollbar-width: thin !important;
+}
+
+.control-row.active-control-row {
+    display: flex !important;
+}
+
+.control-row::-webkit-scrollbar {
+    width: 8px;
+}
+
+.control-row::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.35);
+    border-radius: 999px;
+}
+
+/* Keep General compact and centered inside the fixed panel. */
+#row-1.active-control-row {
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#row-1 .settings-group,
+#row-1 .mid-controls,
+#standardControls {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 980px !important;
+    margin: 0 auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Squad tab scrolls inside the same fixed panel instead of making the whole page taller. */
+#row-2.active-control-row {
+    align-items: stretch !important;
+}
+
+#row-2 .squad-section {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-top: 0 !important;
+    align-items: stretch !important;
+}
+
+#row-2 .squad-column {
+    height: 88px !important;
+    max-height: 88px !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    padding: 6px !important;
+}
+
+/* Custom tab: no more overlapping absolute-looking grid. It scrolls neatly inside the fixed tab area. */
+#row-3.control-row {
+    grid-template-columns: none !important;
+    grid-template-areas: none !important;
+}
+
+#row-3.active-control-row {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+}
+
+#row-3 .customize-group {
+    width: 100% !important;
+    max-width: 720px !important;
+    margin: 0 auto !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+}
+
+#row-3 > div:not(.customize-group) {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    gap: 6px !important;
+    align-items: center !important;
+}
+
+#row-3 .settings-group {
+    width: 100% !important;
+    max-width: 960px !important;
+    min-width: 0 !important;
+    margin: 0 auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+}
+
+#row-3 select,
+#row-3 button {
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    margin: 0 !important;
+    padding: 4px 8px !important;
+    border-radius: 5px !important;
+    box-sizing: border-box !important;
+    font-size: 0.76rem !important;
+}
+
+#row-3 #obstacleSelect,
+#row-3 #weaponSelect {
+    flex: 1 1 175px !important;
+    max-width: 240px !important;
+}
+
+#row-3 #obstacleSelect + div,
+#row-3 #weaponSelect + div {
+    flex: 0 1 220px !important;
+    display: flex !important;
+    gap: 6px !important;
+    width: auto !important;
+}
+
+#row-3 .arena-preset-panel {
+    flex: 1 1 100% !important;
+    max-width: 760px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    padding: 6px !important;
+    border: 2px solid #000 !important;
+    border-radius: 6px !important;
+    background: rgba(0,0,0,0.04) !important;
+    box-sizing: border-box !important;
+}
+
+#row-3 .arena-preset-panel button,
+#row-3 .arena-preset-panel button:last-child {
+    grid-column: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+#row-3 .btn-god {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 2px !important;
+}
+
+#row-3 label {
+    width: 100% !important;
+    text-align: center !important;
+    margin: 2px 0 0 0 !important;
+}
+
+/* Settings tab also scrolls internally. */
+#row-4.active-control-row {
+    align-items: flex-start !important;
+    justify-content: center !important;
+}
+
+#row-4 .settings-group {
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 6px !important;
+}
+
+#row-4 .top-settings-row {
+    gap: 5px !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Main area sizing: keep the canvas/camera visible below the fixed controls on laptop-height screens. */
+.main-layout {
+    width: 100% !important;
+    max-width: 1080px !important;
+    gap: 10px !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    flex-wrap: nowrap !important;
+}
+
+#gameContainer:not(.watch-fullscreen) {
+    width: min(600px, calc((100vh - 245px) * 1.20), calc(100vw - 380px)) !important;
+    min-width: 420px !important;
+    max-width: 600px !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+}
+
+#gameContainer:not(.watch-fullscreen) canvas {
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+}
+
+/* Camera dock: no horizontal scrollbar, no overflow outside the game box. */
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 5px !important;
+    box-sizing: border-box !important;
+    border: 4px solid var(--panel-border) !important;
+    border-top: 0 !important;
+    display: grid !important;
+    grid-template-columns: 34px minmax(50px, 1fr) minmax(42px, 0.75fr) minmax(50px, 1fr) minmax(132px, 1.55fr) minmax(78px, 1.15fr) 34px !important;
+    gap: 5px !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    overflow: hidden !important;
+    background: #333 !important;
+    scrollbar-width: none !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls::-webkit-scrollbar {
+    display: none !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraFoldBtn {
+    display: none !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock > button,
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 31px !important;
+    min-height: 31px !important;
+    margin: 0 !important;
+    padding: 3px 5px !important;
+    border-radius: 5px !important;
+    box-sizing: border-box !important;
+    font-size: 0.68rem !important;
+    line-height: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+    gap: 3px !important;
+    background: #2f3542 !important;
+    border: 2px solid #000 !important;
+    color: #fff !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump span {
+    flex: 0 0 auto !important;
+    font-size: 0.58rem !important;
+    color: #fff !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump input {
+    flex: 0 0 38px !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 23px !important;
+    min-height: 23px !important;
+    padding: 1px !important;
+    text-align: center !important;
+    font-size: 0.72rem !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump button {
+    flex: 0 0 30px !important;
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 23px !important;
+    min-height: 23px !important;
+    padding: 1px !important;
+}
+
+/* If the screen is cramped, hide side previews before making the camera scroll. */
+@media (max-height: 760px), (max-width: 960px) {
+    .stats-panel {
+        display: none !important;
+    }
+
+    .main-layout {
+        max-width: 100% !important;
+        flex-wrap: nowrap !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) {
+        width: min(600px, calc((100vh - 232px) * 1.20), calc(100vw - 18px)) !important;
+        min-width: 350px !important;
+    }
+}
+
+@media (max-width: 620px) {
+    .controls {
+        height: 168px !important;
+        max-height: 168px !important;
+    }
+
+    .control-row {
+        height: 114px !important;
+        max-height: 114px !important;
+    }
+
+    #row-3 .customize-group {
+        grid-template-columns: 1fr !important;
+    }
+
+    #row-3 .arena-preset-panel {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+        grid-template-columns: 30px minmax(42px, 1fr) minmax(38px, 0.7fr) minmax(42px, 1fr) minmax(95px, 1.35fr) minmax(62px, 0.9fr) 30px !important;
+        gap: 3px !important;
+        padding: 4px !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump span {
+        display: none !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump input {
+        flex-basis: 34px !important;
+        width: 34px !important;
+        min-width: 34px !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump button {
+        flex-basis: 26px !important;
+        width: 26px !important;
+        min-width: 26px !important;
+    }
+}
+
+/* Force the fixed tab panel to keep its real height as a body flex item. */
+#controlsPanel.controls {
+    height: 150px !important;
+    max-height: 150px !important;
+    min-height: 150px !important;
+    flex: 0 0 150px !important;
+    flex-shrink: 0 !important;
+}
+
+@media (max-width: 620px) {
+    #controlsPanel.controls {
+        height: 168px !important;
+        max-height: 168px !important;
+        min-height: 168px !important;
+        flex: 0 0 168px !important;
+    }
+}
+
+/* Fix parent flex wrapping that was pushing active tab content into a second horizontal column. */
+#controlsPanel.controls {
+    flex-wrap: nowrap !important;
+}
+
+#controlsPanel.controls > .tab-nav-container,
+#controlsPanel.controls > .control-row.active-control-row {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex-shrink: 0 !important;
+}
+
+/* Stronger cleanup for old Custom-tab grid-area rules. */
+#row-3.active-control-row > .customize-group {
+    position: static !important;
+    grid-area: auto !important;
+    width: 100% !important;
+    max-width: 720px !important;
+    margin: 0 auto !important;
+}
+
+#row-3.active-control-row > div:not(.customize-group) {
+    display: flex !important;
+    flex-direction: column !important;
+    position: static !important;
+    grid-area: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+}
+
+#row-3.active-control-row > div:not(.customize-group) > .settings-group:first-child,
+#row-3.active-control-row > div:not(.customize-group) > .settings-group:last-child {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    position: static !important;
+    grid-area: auto !important;
+    grid-template-columns: none !important;
+    grid-auto-rows: auto !important;
+    width: 100% !important;
+    max-width: 960px !important;
+    min-width: 0 !important;
+    margin: 0 auto !important;
+    gap: 6px !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#row-3.active-control-row > div:not(.customize-group) > .settings-group:last-child {
+    flex-direction: column !important;
+    max-width: 260px !important;
+    padding: 5px !important;
+    border: 2px solid rgba(0,0,0,0.18) !important;
+    border-radius: 6px !important;
+    background: rgba(0,0,0,0.035) !important;
+}
+
+#row-3.active-control-row #obstacleSelect,
+#row-3.active-control-row #weaponSelect {
+    flex: 1 1 180px !important;
+    max-width: 230px !important;
+    min-width: 150px !important;
+    grid-column: auto !important;
+}
+
+#row-3.active-control-row #obstacleSelect + div,
+#row-3.active-control-row #weaponSelect + div {
+    flex: 0 1 220px !important;
+    width: auto !important;
+    min-width: 180px !important;
+    display: flex !important;
+    grid-column: auto !important;
+    gap: 6px !important;
+}
+
+#row-3.active-control-row .arena-preset-panel {
+    flex: 1 1 100% !important;
+    grid-column: auto !important;
+    width: 100% !important;
+    max-width: 760px !important;
+}
+
+#row-3.active-control-row,
+#row-1.active-control-row,
+#row-2.active-control-row,
+#row-4.active-control-row {
+    flex-wrap: nowrap !important;
+}
+
+/* Final viewport fit: make the game scale down enough that the camera dock is visible below the fixed tabs. */
+#gameContainer:not(.watch-fullscreen) {
+    width: min(600px, calc((100vh - 344px) * 1.20), calc(100vw - 380px)) !important;
+    min-width: 330px !important;
+}
+
+@media (max-height: 760px), (max-width: 960px) {
+    #gameContainer:not(.watch-fullscreen) {
+        width: min(600px, calc((100vh - 344px) * 1.20), calc(100vw - 18px)) !important;
+        min-width: 330px !important;
+    }
+}
+
+/* General tab should not vertically center oversized controls; keep them readable from the top and scroll inside. */
+#row-1.active-control-row {
+    align-items: flex-start !important;
+    justify-content: center !important;
+    flex-wrap: nowrap !important;
+}
+
+#row-1 #standardControls {
+    align-items: flex-start !important;
+    max-height: none !important;
+}
+
+
+/* --- FARREL FINAL RESIZABLE CONTROL PANEL + CAMERA FIT PATCH --- */
+:root {
+    --control-panel-height: 150px;
+    --control-tab-height: 34px;
+}
+
+#controlsPanel.controls {
+    position: relative !important;
+    height: var(--control-panel-height) !important;
+    max-height: var(--control-panel-height) !important;
+    min-height: 118px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    padding: 8px 8px 14px 8px !important;
+    gap: 6px !important;
+    box-sizing: border-box !important;
+    max-width: 1100px !important;
+}
+
+#controlsPanel .tab-nav-container {
+    flex: 0 0 var(--control-tab-height) !important;
+    height: var(--control-tab-height) !important;
+    margin: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    overflow: hidden !important;
+    width: 100% !important;
+}
+
+#controlsPanel .tab-btn {
+    height: var(--control-tab-height) !important;
+    min-height: var(--control-tab-height) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 4px 8px !important;
+    font-size: 0.82rem !important;
+    line-height: 1 !important;
+}
+
+#controlsPanel .control-row {
+    display: none !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: calc(var(--control-panel-height) - 62px) !important;
+    max-height: calc(var(--control-panel-height) - 62px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 2px 6px 6px 6px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    align-content: flex-start !important;
+    scrollbar-width: thin !important;
+}
+
+#controlsPanel .control-row.active-control-row {
+    display: flex !important;
+}
+
+#controlsPanel .control-row::-webkit-scrollbar {
+    width: 8px !important;
+}
+
+#controlsPanel .control-row::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.38) !important;
+    border-radius: 999px !important;
+}
+
+.control-resize-handle {
+    position: absolute !important;
+    left: 8px !important;
+    right: 8px !important;
+    bottom: 3px !important;
+    height: 8px !important;
+    border-radius: 999px !important;
+    cursor: ns-resize !important;
+    background:
+        linear-gradient(90deg, transparent, rgba(0,0,0,0.42), transparent),
+        repeating-linear-gradient(90deg, transparent 0 10px, rgba(255,255,255,0.45) 10px 12px, transparent 12px 22px) !important;
+    opacity: 0.55 !important;
+    z-index: 20 !important;
+}
+
+.control-resize-handle:hover,
+body.is-resizing-controls .control-resize-handle {
+    opacity: 1 !important;
+    background:
+        linear-gradient(90deg, transparent, rgba(0,195,255,0.85), transparent),
+        repeating-linear-gradient(90deg, transparent 0 10px, rgba(255,255,255,0.75) 10px 12px, transparent 12px 22px) !important;
+}
+
+body.is-resizing-controls {
+    user-select: none !important;
+    cursor: ns-resize !important;
+}
+
+/* Fix the missing/lost number inputs in General tab. */
+#countControlRow {
+    display: grid !important;
+    grid-template-columns: minmax(52px, 64px) auto minmax(52px, 64px) 34px 48px !important;
+    gap: 5px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+}
+
+#p1Count,
+#p2Count,
+#fsP1Count,
+#fsP2Count,
+#cameraFighterNumber {
+    min-width: 44px !important;
+    width: 100% !important;
+    height: 32px !important;
+    padding: 2px 4px !important;
+    text-align: center !important;
+    font-size: 0.92rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
+    appearance: auto !important;
+}
+
+#countControlRow .btn-mini,
+#countControlRow button {
+    min-width: 0 !important;
+    height: 32px !important;
+    padding: 4px 5px !important;
+}
+
+/* General tab keeps the same panel size as other tabs and scrolls internally when needed. */
+#row-1.active-control-row {
+    align-items: flex-start !important;
+    justify-content: center !important;
+}
+
+#standardControls {
+    display: grid !important;
+    grid-template-columns: minmax(230px, 300px) minmax(260px, 400px) !important;
+    align-items: start !important;
+    justify-content: center !important;
+    gap: 8px 14px !important;
+    width: min(100%, 760px) !important;
+    margin: 0 auto !important;
+}
+
+#standardControls > div {
+    min-width: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+}
+
+@media (max-width: 760px) {
+    #standardControls {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Custom tab compaction inside the fixed panel. */
+#row-3.active-control-row {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    justify-items: center !important;
+}
+
+#row-3 .customize-group {
+    width: min(100%, 640px) !important;
+    margin: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+}
+
+#row-3 .customize-group select {
+    width: 100% !important;
+    height: 34px !important;
+    min-height: 34px !important;
+}
+
+#row-3 > div:not(.customize-group) {
+    width: min(100%, 960px) !important;
+    margin: 0 !important;
+}
+
+#row-3 .settings-group {
+    width: 100% !important;
+    max-width: 960px !important;
+    display: grid !important;
+    grid-template-columns: minmax(160px, 190px) minmax(170px, 1fr) minmax(170px, 1fr) !important;
+    gap: 6px !important;
+    align-items: start !important;
+    justify-items: stretch !important;
+}
+
+#row-3 .settings-group > select,
+#row-3 .settings-group > button,
+#row-3 .settings-group > div {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+#row-3 .settings-group button,
+#row-3 .settings-group select {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 4px 6px !important;
+    font-size: 0.72rem !important;
+}
+
+#row-3 .arena-preset-panel {
+    grid-column: auto !important;
+    width: 100% !important;
+    padding: 6px !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+    box-sizing: border-box !important;
+}
+
+#row-3 .arena-preset-panel button:last-child {
+    grid-column: 1 / -1 !important;
+}
+
+#row-3 .settings-group + .settings-group {
+    width: auto !important;
+    max-width: 220px !important;
+    margin: 6px auto 0 auto !important;
+}
+
+@media (max-width: 760px) {
+    #row-3 .customize-group,
+    #row-3 .settings-group {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Squads/settings scroll inside the same fixed panel without changing panel size. */
+#row-2 .squad-section {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    border-top-width: 0 !important;
+    height: 100% !important;
+    overflow: visible !important;
+}
+
+#row-2 .squad-column {
+    height: 100% !important;
+    max-height: 100% !important;
+}
+
+#row-4 .settings-group {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+/* Camera dock must fit inside the game box and must never create a horizontal scrollbar. */
+#gameContainer:not(.watch-fullscreen) {
+    overflow: visible !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    display: grid !important;
+    grid-template-columns: 68px 30px minmax(44px, 1fr) minmax(38px, 0.8fr) minmax(48px, 1fr) minmax(118px, 1.65fr) 82px 30px !important;
+    gap: 3px !important;
+    align-items: center !important;
+    justify-items: stretch !important;
+    box-sizing: border-box !important;
+    padding: 4px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock > button,
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .btn-mini {
+    min-width: 0 !important;
+    width: auto !important;
+    max-width: 100% !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 4px 3px !important;
+    font-size: 0.64rem !important;
+    line-height: 1 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+    min-width: 0 !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(42px, auto) minmax(34px, 44px) minmax(30px, 36px) !important;
+    gap: 3px !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    padding: 3px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump span {
+    min-width: 0 !important;
+    font-size: 0.62rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump input {
+    min-width: 34px !important;
+    width: 100% !important;
+    height: 26px !important;
+    padding: 1px 2px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump button {
+    min-width: 30px !important;
+    height: 26px !important;
+    padding: 1px 2px !important;
+}
+
+@media (max-width: 640px) {
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+        grid-template-columns: 58px 28px 1fr 0.8fr 1fr 1.5fr 70px 28px !important;
+        gap: 2px !important;
+        padding: 3px !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock > button,
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .btn-mini {
+        font-size: 0.56rem !important;
+        padding: 3px 2px !important;
+    }
+}
+
+/* Browser-specific number field polish. Keep values visible even at compact widths. */
+#p1Count::-webkit-inner-spin-button,
+#p2Count::-webkit-inner-spin-button,
+#fsP1Count::-webkit-inner-spin-button,
+#fsP2Count::-webkit-inner-spin-button,
+#cameraFighterNumber::-webkit-inner-spin-button {
+    opacity: 1 !important;
+    margin-left: 2px !important;
+}
+
+
+/* --- FINAL UI STABILITY PATCH V2: free resize, compact squads, camera dock fit --- */
+:root {
+    --control-panel-height: 150px;
+    --control-tab-height: 34px;
+}
+
+/* Hide/show controls must win over earlier !important display rules. */
+#controlsPanel.controls.controls-hidden {
+    display: none !important;
+}
+
+/* The panel can now be resized much more freely while keeping the tab bar usable. */
+#controlsPanel.controls {
+    position: relative !important;
+    height: var(--control-panel-height) !important;
+    max-height: none !important;
+    min-height: 54px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    padding: 8px 8px 14px 8px !important;
+    gap: 6px !important;
+    box-sizing: border-box !important;
+    max-width: 1100px !important;
+}
+
+#controlsPanel .tab-nav-container {
+    flex: 0 0 var(--control-tab-height) !important;
+    height: var(--control-tab-height) !important;
+    min-height: var(--control-tab-height) !important;
+    margin: 0 !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    overflow: hidden !important;
+}
+
+#controlsPanel .tab-btn {
+    height: var(--control-tab-height) !important;
+    min-height: var(--control-tab-height) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 4px 6px !important;
+    font-size: 0.82rem !important;
+    line-height: 1 !important;
+}
+
+#controlsPanel .control-row {
+    display: none !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 2px 6px 6px 6px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    align-content: flex-start !important;
+    scrollbar-width: thin !important;
+}
+
+#controlsPanel .control-row.active-control-row {
+    display: flex !important;
+}
+
+#controlsPanel .control-row::-webkit-scrollbar,
+#row-2 .squad-column::-webkit-scrollbar {
+    width: 8px !important;
+}
+
+#controlsPanel .control-row::-webkit-scrollbar-thumb,
+#row-2 .squad-column::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.42) !important;
+    border-radius: 999px !important;
+}
+
+/* The handle stays slim but easy to grab. */
+.control-resize-handle {
+    position: absolute !important;
+    left: 8px !important;
+    right: 8px !important;
+    bottom: 3px !important;
+    height: 8px !important;
+    border-radius: 999px !important;
+    cursor: ns-resize !important;
+    background:
+        linear-gradient(90deg, transparent, rgba(0,0,0,0.42), transparent),
+        repeating-linear-gradient(90deg, transparent 0 10px, rgba(255,255,255,0.5) 10px 12px, transparent 12px 22px) !important;
+    opacity: 0.65 !important;
+    z-index: 100 !important;
+}
+
+.control-resize-handle:hover,
+body.is-resizing-controls .control-resize-handle {
+    opacity: 1 !important;
+    background:
+        linear-gradient(90deg, transparent, rgba(0,195,255,0.9), transparent),
+        repeating-linear-gradient(90deg, transparent 0 10px, rgba(255,255,255,0.8) 10px 12px, transparent 12px 22px) !important;
+}
+
+body.is-resizing-controls {
+    user-select: none !important;
+    cursor: ns-resize !important;
+}
+
+/* Keep the General number row readable. */
+#countControlRow {
+    display: grid !important;
+    grid-template-columns: minmax(56px, 70px) auto minmax(56px, 70px) 34px 48px !important;
+    gap: 5px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+}
+
+#p1Count,
+#p2Count,
+#fsP1Count,
+#fsP2Count,
+#cameraFighterNumber {
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 32px !important;
+    padding: 2px 4px !important;
+    text-align: center !important;
+    font-size: 0.92rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
+    appearance: auto !important;
+}
+
+#p1Count::-webkit-inner-spin-button,
+#p2Count::-webkit-inner-spin-button,
+#fsP1Count::-webkit-inner-spin-button,
+#fsP2Count::-webkit-inner-spin-button,
+#cameraFighterNumber::-webkit-inner-spin-button {
+    opacity: 1 !important;
+    margin-left: 2px !important;
+}
+
+#row-1.active-control-row {
+    align-items: flex-start !important;
+    justify-content: center !important;
+}
+
+#standardControls {
+    display: grid !important;
+    grid-template-columns: minmax(230px, 300px) minmax(260px, 400px) !important;
+    align-items: start !important;
+    justify-content: center !important;
+    gap: 8px 14px !important;
+    width: min(100%, 760px) !important;
+    margin: 0 auto !important;
+}
+
+#standardControls > div {
+    min-width: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+}
+
+@media (max-width: 760px) {
+    #standardControls {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* SQUADS: compact cards that follow the available panel height. */
+#row-2.active-control-row {
+    align-items: stretch !important;
+    justify-content: center !important;
+}
+
+#row-2 .squad-section {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-top: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+}
+
+#row-2 .squad-column {
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 5px !important;
+    gap: 5px !important;
+    box-sizing: border-box !important;
+    border-width: 3px !important;
+}
+
+#row-2 .squad-modern-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    min-height: 34px !important;
+    padding: 6px 8px !important;
+    margin-bottom: 4px !important;
+    border-width: 2px !important;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.18) !important;
+}
+
+#row-2 .squad-modern-title {
+    font-size: 0.86rem !important;
+    line-height: 1 !important;
+    letter-spacing: 0.6px !important;
+}
+
+#row-2 .squad-modern-subtitle {
+    font-size: 0.66rem !important;
+    margin-top: 1px !important;
+}
+
+#row-2 .btn-add-slot.compact {
+    padding: 5px 8px !important;
+    min-height: 28px !important;
+    font-size: 0.72rem !important;
+}
+
+#row-2 .fighter-card {
+    padding: 5px !important;
+    gap: 3px !important;
+    border-width: 2px !important;
+    border-radius: 6px !important;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.16) !important;
+    min-height: 0 !important;
+    max-height: none !important;
+}
+
+#row-2 .fighter-card-top {
+    display: grid !important;
+    grid-template-columns: 28px 34px minmax(0, 1fr) 38px 54px !important;
+    gap: 4px !important;
+    align-items: center !important;
+}
+
+#row-2 .fighter-number-badge {
+    min-width: 0 !important;
+    width: 28px !important;
+    padding: 3px 2px !important;
+    font-size: 0.62rem !important;
+    box-sizing: border-box !important;
+}
+
+#row-2 .fighter-portrait {
+    width: 34px !important;
+    height: 34px !important;
+}
+
+#row-2 .fighter-card-title {
+    font-size: 0.78rem !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+#row-2 .fighter-card-ability {
+    display: none !important;
+}
+
+#row-2 .modern-track,
+#row-2 .modern-remove {
+    padding: 4px 3px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    font-size: 0.56rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+#row-2 .fighter-select-wrap {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 26px 26px !important;
+    gap: 3px !important;
+    align-items: center !important;
+    min-height: 28px !important;
+}
+
+#row-2 .modern-fighter-input {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 3px 4px !important;
+    font-size: 0.72rem !important;
+}
+
+#row-2 .fighter-random-btn,
+#row-2 .fighter-clear-btn {
+    position: static !important;
+    transform: none !important;
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    padding: 2px !important;
+    font-size: 0.75rem !important;
+}
+
+#row-2 .fighter-card-stats,
+#row-2 .fighter-card-desc {
+    display: none !important;
+}
+
+#row-2 #squadVsLabel {
+    align-self: center !important;
+    font-size: 1.3rem !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+}
+
+#row-2 .ffa-squad-mode {
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+
+#row-2 .ffa-squad-mode #squadVsLabel,
+#row-2 .ffa-squad-mode #p2SquadContainer {
+    display: none !important;
+}
+
+/* Custom/settings tabs: scroll inside the same panel. */
+#row-3.active-control-row {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    justify-items: center !important;
+    align-items: start !important;
+}
+
+#row-3 .customize-group {
+    width: min(100%, 640px) !important;
+    margin: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+}
+
+#row-3 .customize-group select,
+#row-3 .settings-group button,
+#row-3 .settings-group select {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 4px 6px !important;
+    font-size: 0.72rem !important;
+}
+
+#row-3 > div:not(.customize-group) {
+    width: min(100%, 960px) !important;
+    margin: 0 !important;
+}
+
+#row-3 .settings-group {
+    width: 100% !important;
+    max-width: 960px !important;
+    display: grid !important;
+    grid-template-columns: minmax(160px, 190px) minmax(170px, 1fr) minmax(170px, 1fr) !important;
+    gap: 6px !important;
+    align-items: start !important;
+    justify-items: stretch !important;
+}
+
+#row-3 .arena-preset-panel {
+    grid-column: auto !important;
+    width: 100% !important;
+    padding: 6px !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+    box-sizing: border-box !important;
+}
+
+#row-3 .arena-preset-panel button:last-child {
+    grid-column: 1 / -1 !important;
+}
+
+#row-4 .settings-group {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+@media (max-width: 760px) {
+    #row-2 .squad-section,
+    #row-3 .customize-group,
+    #row-3 .settings-group {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* CAMERA DOCK: same style, but compact enough to always fit inside the game box. */
+#gameContainer:not(.watch-fullscreen) {
+    overflow: visible !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    display: grid !important;
+    grid-template-columns: 76px 26px minmax(44px, 1fr) minmax(38px, .8fr) minmax(44px, 1fr) minmax(112px, 1.55fr) 78px 26px !important;
+    gap: 3px !important;
+    align-items: center !important;
+    justify-items: stretch !important;
+    box-sizing: border-box !important;
+    padding: 4px !important;
+    border-width: 4px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock > button,
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .btn-mini {
+    min-width: 0 !important;
+    width: auto !important;
+    max-width: 100% !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 4px 3px !important;
+    font-size: 0.62rem !important;
+    line-height: 1 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+    min-width: 0 !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(36px, auto) minmax(34px, 42px) minmax(30px, 34px) !important;
+    gap: 3px !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    padding: 3px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump span {
+    min-width: 0 !important;
+    font-size: 0.58rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump input {
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 26px !important;
+    padding: 1px 2px !important;
+    font-size: 0.75rem !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump button {
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 26px !important;
+    padding: 1px 2px !important;
+    font-size: 0.56rem !important;
+}
+
+@media (max-width: 640px) {
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+        grid-template-columns: 58px 24px 1fr .8fr 1fr minmax(86px,1.5fr) 60px 24px !important;
+        gap: 2px !important;
+        padding: 3px !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock > button,
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .btn-mini {
+        font-size: 0.52rem !important;
+        padding: 3px 2px !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump span {
+        display: none !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+        grid-template-columns: minmax(30px, 1fr) minmax(30px, 1fr) !important;
+    }
+}
+
+
+/* --- FINAL UI STABILITY PATCH V2B: enforce flex-basis resize + dock column fit --- */
+#controlsPanel.controls {
+    height: var(--control-panel-height) !important;
+    flex: 0 0 var(--control-panel-height) !important;
+    flex-basis: var(--control-panel-height) !important;
+    max-height: none !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock #fullscreenCameraFoldBtn {
+    display: flex !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+    grid-template-columns: 64px 24px minmax(38px, 1fr) minmax(34px, .8fr) minmax(38px, 1fr) minmax(88px, 1.45fr) 64px 24px !important;
+    gap: 3px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock > button,
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .btn-mini {
+    font-size: 0.56rem !important;
+    padding: 3px 2px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+    grid-template-columns: minmax(30px, auto) minmax(28px, 34px) minmax(24px, 30px) !important;
+    padding: 2px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump span {
+    font-size: 0.52rem !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump input,
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump button {
+    height: 24px !important;
+    font-size: 0.56rem !important;
+}
+
+@media (max-width: 500px) {
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+        grid-template-columns: 46px 22px 1fr .8fr 1fr minmax(58px,1.25fr) 48px 22px !important;
+        gap: 2px !important;
+        padding: 3px !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump span {
+        display: none !important;
+    }
+
+    #gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+        grid-template-columns: minmax(24px, 1fr) minmax(24px, 1fr) !important;
+    }
+}
+
+
+/* --- FINAL UI STABILITY PATCH V2C: better default panel height + compact dock observer class --- */
+:root {
+    --control-panel-height: 180px;
+}
+
+#fullscreenCameraDock.dock-compact .camera-jump span {
+    display: none !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.dock-compact .camera-jump {
+    grid-template-columns: minmax(28px, 1fr) minmax(28px, 1fr) !important;
+}
+
+
+/* --- Spearer + new fighter profile graphics --- */
+.portrait-aquamarine {
+    width: 28px;
+    height: 18px;
+    right: -8px;
+    bottom: 5px;
+    background: #81ecec;
+    border: 2px solid #006f7a;
+    border-radius: 50% 65% 65% 50%;
+    box-shadow: 0 0 8px #00ffff;
+}
+
+.portrait-aquamarine::before {
+    content: "";
+    position: absolute;
+    left: -10px;
+    top: 3px;
+    width: 0;
+    height: 0;
+    border-right: 12px solid #00cec9;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+}
+
+.portrait-aquamarine::after {
+    content: "";
+    position: absolute;
+    right: 5px;
+    top: 4px;
+    width: 4px;
+    height: 4px;
+    background: #003b46;
+    border-radius: 50%;
+}
+
+.portrait-type-aquamarine .portrait-ring {
+    box-shadow: 0 0 0 3px #00cec9, 0 0 18px #00ffff;
+}
+
+.portrait-mammoth,
+.portrait-mammoth-mount {
+    width: 34px;
+    height: 22px;
+    right: -10px;
+    bottom: 2px;
+    background: #6d4c41;
+    border: 2px solid #2d1f1a;
+    border-radius: 55% 45% 45% 55%;
+}
+
+.portrait-mammoth::before,
+.portrait-mammoth-mount::before {
+    content: "";
+    position: absolute;
+    right: -10px;
+    top: 5px;
+    width: 15px;
+    height: 14px;
+    background: #795548;
+    border: 2px solid #2d1f1a;
+    border-radius: 50%;
+}
+
+.portrait-mammoth::after,
+.portrait-mammoth-mount::after {
+    content: "";
+    position: absolute;
+    right: -16px;
+    top: 13px;
+    width: 14px;
+    height: 18px;
+    border-right: 4px solid #5d4037;
+    border-bottom: 4px solid #5d4037;
+    border-radius: 0 0 12px 0;
+}
+
+.portrait-spearer {
+    width: 46px;
+    height: 5px;
+    right: -13px;
+    bottom: 17px;
+    background: #8d6e63;
+    border: 2px solid #2d3436;
+    border-radius: 999px;
+    transform: rotate(-22deg);
+}
+
+.portrait-spearer::before {
+    content: "";
+    position: absolute;
+    right: -15px;
+    top: -7px;
+    width: 0;
+    height: 0;
+    border-left: 18px solid #dfe6e9;
+    border-top: 9px solid transparent;
+    border-bottom: 9px solid transparent;
+}
+
+.portrait-spearer::after {
+    content: "";
+    position: absolute;
+    left: -12px;
+    top: -6px;
+    width: 0;
+    height: 0;
+    border-right: 14px solid #ff7675;
+    border-top: 7px solid transparent;
+    border-bottom: 7px solid transparent;
+}
+
+.portrait-type-spearer .portrait-ring {
+    box-shadow: 0 0 0 3px #f5f5dc, 0 0 10px rgba(245,245,220,0.8);
+}
+
+
+
+/* --- FARREL POWER PATCH PORTRAITS: spider, bombman, missile --- */
+.fighter-portrait.portrait-type-spider .portrait-core {
+    box-shadow: inset -8px -10px 0 rgba(0,0,0,0.35), 0 0 0 3px #8e44ad;
+}
+.fighter-portrait.portrait-type-spider .portrait-accessory::before,
+.fighter-portrait.portrait-type-spider .portrait-accessory::after {
+    content: "";
+    position: absolute;
+    width: 58px;
+    height: 28px;
+    border-top: 4px solid #111;
+    border-bottom: 4px solid #111;
+    border-radius: 50%;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(22deg);
+}
+.fighter-portrait.portrait-type-spider .portrait-accessory::after {
+    transform: translate(-50%, -50%) rotate(-22deg);
+}
+.fighter-portrait.portrait-type-spider .portrait-weapon {
+    width: 46px;
+    height: 46px;
+    border: 2px dashed rgba(223,230,233,.85);
+    border-radius: 50%;
+    transform: translate(13px, -10px);
+}
+
+.fighter-portrait.portrait-type-bombman .portrait-core {
+    box-shadow: inset -10px -12px 0 rgba(0,0,0,0.45), 0 0 0 3px #ff4757;
+}
+.fighter-portrait.portrait-type-bombman .portrait-accessory::before {
+    content: "";
+    position: absolute;
+    width: 6px;
+    height: 24px;
+    background: #2d3436;
+    border-radius: 5px;
+    left: 52%;
+    top: 1px;
+    transform: rotate(25deg);
+}
+.fighter-portrait.portrait-type-bombman .portrait-accessory::after {
+    content: "";
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #ffa502;
+    border-radius: 50%;
+    left: 64%;
+    top: -3px;
+    box-shadow: 0 0 10px #ff4757;
+}
+.fighter-portrait.portrait-type-bombman .portrait-weapon {
+    width: 20px;
+    height: 20px;
+    background: #ff4757;
+    border: 3px solid #111;
+    border-radius: 50%;
+    transform: translate(28px, 28px);
+}
+
+.fighter-portrait.portrait-type-missile .portrait-core {
+    box-shadow: inset -8px -10px 0 rgba(0,0,0,0.28), 0 0 0 3px #ffa502;
+}
+.fighter-portrait.portrait-type-missile .portrait-accessory::before {
+    content: "";
+    position: absolute;
+    width: 42px;
+    height: 14px;
+    background: #2d3436;
+    border: 3px solid #111;
+    border-radius: 5px;
+    right: -12px;
+    top: 21px;
+}
+.fighter-portrait.portrait-type-missile .portrait-accessory::after {
+    content: "";
+    position: absolute;
+    width: 0;
+    height: 0;
+    right: -22px;
+    top: 20px;
+    border-left: 16px solid #ffa502;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+}
+.fighter-portrait.portrait-type-missile .portrait-weapon {
+    width: 36px;
+    height: 8px;
+    background: #dfe6e9;
+    border: 2px solid #111;
+    border-radius: 999px;
+    transform: translate(33px, 6px) rotate(-18deg);
+}
+
+.fighter-card[data-type="spider"],
+.fighter-card[data-type="bombman"],
+.fighter-card[data-type="missile"] {
+    position: relative;
+}
+
+
+
+
+/* --- FARREL FINAL PATCH: scrollable controls, cleaner custom tab, duplicate buttons --- */
+#controlsPanel.controls {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    align-items: flex-start !important;
+    align-content: flex-start !important;
+    padding-bottom: 18px !important;
+    scroll-behavior: smooth;
+}
+
+#controlsPanel.controls[style*="display: none"] {
+    display: none !important;
+}
+
+#controlsPanel .control-row.active-control-row {
+    max-height: none !important;
+    scrollbar-width: thin !important;
+}
+
+#row-1.active-control-row,
+#row-3.active-control-row,
+#row-4.active-control-row {
+    flex: 0 0 auto !important;
+    min-height: max-content !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding-bottom: 18px !important;
+}
+
+#row-2.active-control-row {
+    min-height: 0 !important;
+    height: calc(var(--control-panel-height) - 62px) !important;
+    overflow: hidden !important;
+}
+
+#row-3.active-control-row {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+}
+
+#row-3 .settings-group {
+    grid-template-columns: minmax(160px, 220px) minmax(220px, 1fr) minmax(160px, 220px) !important;
+    align-items: center !important;
+}
+
+#row-3 .arena-preset-panel {
+    align-self: stretch !important;
+}
+
+#row-3 .btn-god {
+    width: 36px !important;
+    min-width: 36px !important;
+}
+
+@media (max-width: 760px) {
+    #row-3 .settings-group {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+#row-2 .fighter-card-top {
+    grid-template-columns: 28px 34px minmax(0, 1fr) 38px 38px 54px !important;
+}
+
+#row-2 .modern-duplicate,
+#row-2 .btn-duplicate-slot.compact {
+    background: #16a085 !important;
+    color: #fff !important;
+    border: 2px solid #000 !important;
+    border-radius: 5px !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+}
+
+#row-2 .modern-duplicate {
+    padding: 4px 3px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    font-size: 0.56rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+#row-2 .squad-modern-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    gap: 6px !important;
+    align-items: center !important;
+}
+
+#row-2 .btn-duplicate-slot.compact,
+#row-2 .btn-add-slot.compact {
+    width: auto !important;
+    min-width: 44px !important;
+}
+
+/* Make the normal camera dock fit exactly inside the box without horizontal scrolling. */
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.camera-controls {
+    overflow: hidden !important;
+    grid-template-columns: 60px 24px minmax(36px, 1fr) minmax(34px, .8fr) minmax(36px, 1fr) minmax(80px, 1.35fr) 60px 24px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock > button,
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .btn-mini {
+    font-size: 0.52rem !important;
+    padding: 2px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump {
+    grid-template-columns: minmax(26px, auto) minmax(28px, 34px) minmax(24px, 30px) !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump span {
+    font-size: 0.48rem !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump input,
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock .camera-jump button {
+    font-size: 0.54rem !important;
+    padding: 1px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.dock-compact {
+    grid-template-columns: 56px 22px 1fr .8fr 1fr minmax(56px, 1.15fr) 56px 22px !important;
+}
+
+#gameContainer:not(.watch-fullscreen) #fullscreenCameraDock.dock-compact .camera-jump span {
+    display: none !important;
+}
+
+
+/* --- FARREL SQUAD TAB NO-STACK + FLOWING RESIZE HANDLE FIX --- */
+#controlsPanel.controls {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    padding-bottom: 6px !important;
+}
+
+#controlsPanel .control-row.active-control-row {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+#row-2.active-control-row {
+    overflow: hidden !important;
+    padding: 2px 5px 4px 5px !important;
+}
+
+#row-2 .squad-section {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-top: 0 !important;
+}
+
+#row-2 .squad-column {
+    height: 100% !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    padding: 6px !important;
+}
+
+#row-2 #squadVsLabel {
+    width: 28px !important;
+    min-width: 28px !important;
+    align-self: center !important;
+    text-align: center !important;
+    overflow: hidden !important;
+}
+
+#row-2 .fighter-card {
+    flex: 0 0 auto !important;
+    display: grid !important;
+    grid-template-rows: minmax(34px, auto) 28px !important;
+    gap: 4px !important;
+    min-height: 70px !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 5px !important;
+    box-sizing: border-box !important;
+}
+
+#row-2 .fighter-card-top {
+    display: grid !important;
+    grid-template-columns: 28px 34px minmax(0, 1fr) minmax(98px, auto) !important;
+    gap: 4px !important;
+    align-items: center !important;
+    min-height: 34px !important;
+    height: auto !important;
+    overflow: hidden !important;
+}
+
+#row-2 .fighter-card-main {
+    min-width: 0 !important;
+    overflow: hidden !important;
+}
+
+#row-2 .fighter-card-actions {
+    display: grid !important;
+    grid-template-columns: 30px 30px 30px !important;
+    gap: 3px !important;
+    align-items: center !important;
+    justify-content: end !important;
+    width: 96px !important;
+    min-width: 96px !important;
+    overflow: hidden !important;
+}
+
+#row-2 .fighter-card-actions > button,
+#row-2 .modern-track,
+#row-2 .modern-duplicate,
+#row-2 .modern-remove {
+    position: static !important;
+    transform: none !important;
+    width: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    padding: 1px !important;
+    font-size: 0.48rem !important;
+    line-height: 1 !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+}
+
+#row-2 .modern-track {
+    background: #dff6ff !important;
+    color: #2d3436 !important;
+}
+
+#row-2 .modern-remove {
+    background: #ff6b6b !important;
+    color: #000 !important;
+    font-size: 0.9rem !important;
+}
+
+#row-2 .fighter-select-wrap {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 26px 26px !important;
+    gap: 3px !important;
+    align-items: center !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    overflow: visible !important;
+}
+
+#row-2 .modern-fighter-input {
+    grid-column: 1 !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 3px 5px !important;
+    font-size: 0.72rem !important;
+    box-sizing: border-box !important;
+}
+
+#row-2 .fighter-random-btn,
+#row-2 .fighter-clear-btn {
+    position: static !important;
+    transform: none !important;
+    right: auto !important;
+    top: auto !important;
+    width: 26px !important;
+    min-width: 26px !important;
+    max-width: 26px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    padding: 0 !important;
+    font-size: 0.78rem !important;
+    line-height: 1 !important;
+    z-index: 1 !important;
+    box-sizing: border-box !important;
+}
+
+#row-2 .fighter-card-stats,
+#row-2 .fighter-card-desc {
+    display: none !important;
+}
+
+#row-2 .squad-modern-header {
+    flex: 0 0 auto !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 48px 44px !important;
+    gap: 5px !important;
+    align-items: center !important;
+    min-height: 42px !important;
+    padding: 5px 7px !important;
+    overflow: hidden !important;
+}
+
+#row-2 .squad-modern-header > div {
+    min-width: 0 !important;
+    overflow: hidden !important;
+}
+
+#row-2 .btn-duplicate-slot.compact,
+#row-2 .btn-add-slot.compact {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 30px !important;
+    padding: 2px 4px !important;
+    font-size: 0.65rem !important;
+}
+
+#row-2 .custom-dropdown-list {
+    z-index: 9999 !important;
+}
+
+.control-resize-handle {
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    flex: 0 0 9px !important;
+    width: calc(100% - 16px) !important;
+    height: 9px !important;
+    min-height: 9px !important;
+    margin: 2px auto 0 auto !important;
+    z-index: 15 !important;
+}
+
+@media (max-width: 760px) {
+    #row-2 .squad-section {
+        grid-template-columns: 1fr !important;
+    }
+    #row-2 #squadVsLabel {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 22px !important;
+    }
+    #row-2 .fighter-card-top {
+        grid-template-columns: 26px 32px minmax(0, 1fr) minmax(92px, auto) !important;
+    }
+    #row-2 .fighter-card-actions {
+        width: 90px !important;
+        min-width: 90px !important;
+        grid-template-columns: repeat(3, 28px) !important;
+    }
+    #row-2 .fighter-card-actions > button,
+    #row-2 .modern-track,
+    #row-2 .modern-duplicate,
+    #row-2 .modern-remove {
+        width: 28px !important;
+        min-width: 28px !important;
+        max-width: 28px !important;
+    }
+}
+
+
+/* --- FARREL NO-STACK PATCH B: keep active tab inside resized panel --- */
+#controlsPanel.controls > .control-row.active-control-row {
+    flex: 1 1 0 !important;
+    flex-basis: 0 !important;
+    flex-grow: 1 !important;
+    flex-shrink: 1 !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+}
+
+#controlsPanel.controls > #row-2.control-row.active-control-row {
+    display: flex !important;
+    flex: 1 1 0 !important;
+    flex-basis: 0 !important;
+    flex-shrink: 1 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: hidden !important;
+}
+
+#controlsPanel.controls > #controlResizeHandle.control-resize-handle {
+    position: relative !important;
+    display: block !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    top: auto !important;
+    flex: 0 0 9px !important;
+    align-self: stretch !important;
+    width: auto !important;
+    height: 9px !important;
+    min-height: 9px !important;
+    margin: 2px 8px 0 8px !important;
+    transform: none !important;
+}
+
+#row-2.active-control-row > #squadSection.squad-section {
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+}
+
+#row-2.active-control-row #p1SquadContainer.squad-column,
+#row-2.active-control-row #p2SquadContainer.squad-column {
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+}
+
+
+/* --- FARREL NO-STACK PATCH C: better default height for readable squad cards --- */
+:root { --control-panel-height: 230px; }
+
+
+/* --- FARREL LABEL NUMBERS + DETAILED RECAP STYLES --- */
+.recap-fun-row {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.battle-heat-card {
+    gap: 5px;
+}
+
+.battle-heat-meter {
+    width: 100%;
+    height: 9px;
+    border: 2px solid #000;
+    background: rgba(255,255,255,0.35);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 5px;
+}
+
+.battle-heat-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #2ed573, #ffa502, #ff4757);
+    transition: width 0.25s ease;
+}
+
+.recap-action-row {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.recap-action-row button {
+    background: #2f3542;
+    color: #fff;
+    border: 2px solid #000;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.detailed-recap-panel {
+    max-height: 260px;
+    overflow-y: auto;
+    border: 3px solid #000;
+    background: rgba(0,0,0,0.08);
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.detailed-recap-title {
+    font-family: var(--ui-font);
+    font-size: 1rem;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.detailed-fighter-row {
+    display: grid;
+    grid-template-columns: 24px 16px minmax(120px, 1fr) repeat(4, minmax(44px, 58px));
+    gap: 6px;
+    align-items: center;
+    padding: 6px;
+    margin-bottom: 5px;
+    border: 2px solid rgba(0,0,0,0.55);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.66);
+    color: #111;
+}
+
+.detailed-rank {
+    font-weight: 900;
+    text-align: center;
+}
+
+.detailed-color-dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 999px;
+    border: 2px solid #000;
+}
+
+.detailed-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.detailed-main b {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.detailed-main span {
+    font-size: 0.72rem;
+    opacity: 0.75;
+}
+
+.detailed-stat {
+    text-align: center;
+    font-size: 0.7rem;
+}
+
+.detailed-stat span {
+    display: block;
+    opacity: 0.7;
+    font-weight: 800;
+}
+
+.detailed-stat b {
+    font-size: 0.82rem;
+}
+
+@media (max-width: 720px) {
+    .detailed-fighter-row {
+        grid-template-columns: 22px 14px minmax(90px, 1fr) repeat(2, minmax(38px, 48px));
+    }
+
+    .detailed-stat:nth-last-child(-n+2) {
+        display: none;
+    }
+}
+
+
+/* --- FARREL MASS MAP + SCROLLABLE RECAP + FUN FEATURE STYLES --- */
+#resultModal {
+    max-height: 92vh !important;
+    overflow: hidden !important;
+    display: none;
+}
+
+#msgContainer {
+    max-height: calc(88vh - 145px) !important;
+    overflow-y: auto !important;
+    padding-right: 4px;
+    overscroll-behavior: contain;
+}
+
+.battle-recap {
+    max-height: calc(86vh - 165px) !important;
+    overflow-y: auto !important;
+    padding-right: 5px;
+    overscroll-behavior: contain;
+}
+
+.detailed-recap-panel {
+    max-height: min(380px, 44vh) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+}
+
+.custom-map-controls {
+    width: min(520px, 100%);
+    margin: 6px auto 0;
+    padding: 6px;
+    border: 2px solid var(--panel-border);
+    border-radius: 6px;
+    background: rgba(0,0,0,0.05);
+    box-sizing: border-box;
+}
+
+.custom-map-row,
+.custom-map-presets {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.custom-map-row input {
+    width: 95px !important;
+    text-align: center;
+    font-weight: 900;
+}
+
+.custom-map-row span {
+    font-weight: 900;
+    font-family: var(--ui-font);
+}
+
+.custom-map-presets {
+    margin-top: 5px;
+}
+
+.mass-squad-note {
+    width: 100%;
+    box-sizing: border-box;
+    border: 2px dashed var(--panel-border);
+    border-radius: 8px;
+    padding: 8px;
+    margin: 6px 0;
+    background: rgba(255, 193, 7, 0.16);
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.sudden-death-hud {
+    position: absolute;
+    top: 54px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9;
+    pointer-events: none;
+    background: rgba(255, 71, 87, 0.88);
+    color: #fff;
+    border: 3px solid #000;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-family: var(--ui-font);
+    text-transform: uppercase;
+    text-shadow: 2px 2px 0 #000;
+    box-shadow: 4px 4px 0 rgba(0,0,0,0.35);
+    display: none;
+}
+
+body.dark-mode .custom-map-controls {
+    background: rgba(255,255,255,0.06);
+}
+
+@media (max-width: 700px) {
+    .detailed-fighter-row {
+        grid-template-columns: 22px 14px minmax(100px, 1fr) repeat(2, minmax(40px, 48px)) !important;
+    }
+    .detailed-fighter-row .detailed-stat:nth-last-child(-n+2) {
+        display: none;
+    }
+}
+
+/* --- FARREL FUN PACK 2 VISUAL HELPERS --- */
+#rageModeBtn.active { background:#ff4757; color:#fff; }
+#powerDropsBtn.active { background:#00b894; color:#fff; }
+#rivalLinesBtn.active { background:#ffbe76; color:#000; }
+#koConfettiBtn:not(.active) { background:#747d8c; color:#fff; }
+
+
+
+/* --- TOURNAMENT REVAMP + PET REMOVAL PATCH --- */
+.tournament-hub-v2 {
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 1040px;
+    text-align: left;
+    box-sizing: border-box;
+}
+
+.tourney-topline {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: stretch;
+    flex-wrap: wrap;
+    border: 2px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 10px;
+    background: rgba(0,0,0,0.04);
+}
+
+.tourney-topline h3 {
+    margin: 0;
+    font-family: var(--ui-font);
+    letter-spacing: 1px;
+}
+
+.tourney-topline p {
+    margin: 3px 0 0 0;
+    font-size: 0.78rem;
+    opacity: 0.75;
+    font-weight: 700;
+}
+
+.tourney-champion-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 180px;
+    padding: 8px 12px;
+    border: 2px solid #000;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #f1c40f, #f39c12);
+    color: #111;
+    font-weight: 900;
+    text-transform: uppercase;
+    text-align: center;
+    box-shadow: inset 0 -8px 0 rgba(0,0,0,.12);
+}
+
+.tourney-config-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(120px, 1fr));
+    gap: 8px;
+}
+
+.tourney-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.tourney-field select,
+.tourney-field input {
+    height: 34px;
+    width: 100%;
+}
+
+.tourney-action-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(90px, 1fr));
+    gap: 6px;
+}
+
+.tourney-action-grid button {
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 5px;
+    font-size: 0.72rem;
+}
+
+.tourney-action-grid .watch { background: #00c3ff; color: #001a22; }
+.tourney-action-grid .sim { background: #8e44ad; color: white; }
+.tourney-action-grid .sim-all { background: #6c5ce7; color: white; }
+.tourney-action-grid .save { background: #2980b9; color: white; }
+.tourney-action-grid .load { background: #16a085; color: white; }
+.tourney-action-grid .danger { background: #c0392b; color: white; }
+
+.tourney-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tourney-counter {
+    min-width: 64px;
+    padding: 7px 10px;
+    text-align: center;
+    border: 2px solid #000;
+    border-radius: 7px;
+    background: #2f3542;
+    color: white;
+    font-weight: 900;
+}
+
+.tourney-status {
+    flex: 1;
+    min-height: 18px;
+    padding: 7px 10px;
+    border: 2px solid #000;
+    border-radius: 7px;
+    background: rgba(255,255,255,.8);
+    color: #111;
+    font-weight: 900;
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.dark-mode .tourney-status {
+    background: rgba(255,255,255,.1);
+    color: #eee;
+}
+
+.tourney-panels {
+    display: grid;
+    grid-template-columns: minmax(230px, .9fr) minmax(300px, 1.4fr);
+    gap: 8px;
+    min-height: 140px;
+}
+
+.tourney-panel {
+    min-height: 120px;
+    max-height: 260px;
+    border: 2px solid var(--panel-border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(0,0,0,.035);
+    display: flex;
+    flex-direction: column;
+}
+
+.tourney-panel-title {
+    background: #333;
+    color: white;
+    font-weight: 900;
+    text-align: center;
+    padding: 6px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+}
+
+.tourney-pool-list,
+.tourney-bracket-panel {
+    padding: 8px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.75rem;
+}
+
+.tourney-team-card,
+.tourney-match-card {
+    border: 2px solid #000;
+    border-radius: 7px;
+    padding: 7px;
+    background: var(--panel-bg);
+    box-shadow: 2px 2px 0 rgba(0,0,0,.12);
+}
+
+.tourney-team-card {
+    display: grid;
+    grid-template-columns: 14px 1fr auto;
+    gap: 7px;
+    align-items: center;
+}
+
+.tourney-seed-dot {
+    width: 12px;
+    height: 32px;
+    border-radius: 99px;
+    background: var(--team-color, #999);
+    border: 1px solid #000;
+}
+
+.tourney-team-name {
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.tourney-team-roster {
+    opacity: .72;
+    font-size: .68rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tourney-mini-btn {
+    border: 2px solid #000;
+    border-radius: 5px;
+    background: #c0392b;
+    color: white;
+    font-size: .65rem;
+    padding: 4px 6px;
+    cursor: pointer;
+}
+
+.tourney-round-title {
+    margin: 6px 0 2px 0;
+    font-family: var(--ui-font);
+    color: #111;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+body.dark-mode .tourney-round-title { color: #eee; }
+
+.tourney-match-card {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+}
+
+.tourney-match-card.current {
+    outline: 3px solid #f1c40f;
+    box-shadow: 0 0 14px rgba(241,196,15,.55);
+}
+
+.tourney-match-card.done {
+    opacity: .9;
+    background: rgba(46, 204, 113, .12);
+}
+
+.tourney-side {
+    min-width: 0;
+}
+
+.tourney-side-name {
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tourney-side-name.winner {
+    color: #27ae60;
+}
+
+.tourney-vs {
+    font-family: var(--ui-font);
+    color: #666;
+    font-size: .85rem;
+}
+
+.tourney-match-meta {
+    grid-column: 1 / -1;
+    font-size: .67rem;
+    opacity: .72;
+    text-align: center;
+}
+
+@media (max-width: 760px) {
+    .tourney-config-grid {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+    }
+    .tourney-action-grid {
+        grid-template-columns: repeat(3, minmax(80px, 1fr));
+    }
+    .tourney-panels {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 460px) {
+    .tourney-config-grid,
+    .tourney-action-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* --- FARREL CUSTOM TOURNAMENT + CAMPAIGN MODE PATCH --- */
+.tourney-custom-builder,
+.campaign-hub {
+    width: 100%;
+    max-width: 980px;
+    background: rgba(0,0,0,0.035);
+    border: 3px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px;
+    box-sizing: border-box;
+}
+
+.tourney-builder-grid {
+    display: grid;
+    grid-template-columns: minmax(150px, 1.1fr) minmax(150px, 1.1fr) auto auto auto;
+    gap: 6px;
+    align-items: end;
+}
+
+.tourney-builder-grid button,
+.campaign-action-row button,
+.campaign-shop-row button {
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: 0.72rem;
+}
+
+.tourney-custom-roster-list {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    max-height: 72px;
+    overflow-y: auto;
+    padding: 5px;
+    border: 2px dashed rgba(0,0,0,0.25);
+    border-radius: 6px;
+}
+
+.tourney-roster-chip,
+.campaign-roster-chip,
+.campaign-enemy-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 2px solid #000;
+    border-radius: 999px;
+    padding: 4px 7px;
+    background: #fff;
+    color: #111;
+    font-size: 0.72rem;
+    font-weight: 900;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.15);
+}
+
+.tourney-roster-chip button,
+.campaign-roster-chip button {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    font-size: 0.75rem !important;
+    border-radius: 50%;
+    background: #ff6b6b;
+}
+
+.tourney-action-grid .add-bracket,
+.tourney-builder-grid .add-bracket {
+    background: linear-gradient(135deg, #2ed573, #00c3ff) !important;
+    color: #001015 !important;
+}
+
+.campaign-hub {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.campaign-topline {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+}
+
+.campaign-topline h3 {
+    margin: 0;
+    font-family: var(--ui-font);
+    letter-spacing: 1px;
+}
+
+.campaign-topline p {
+    margin: 2px 0 0 0;
+    font-size: 0.76rem;
+    font-weight: 700;
+    opacity: .78;
+}
+
+.campaign-status-badge {
+    flex: 0 0 auto;
+    background: #f1c40f;
+    color: #111;
+    border: 3px solid #000;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-weight: 1000;
+    box-shadow: 3px 3px 0 rgba(0,0,0,.22);
+    text-align: center;
+}
+
+.campaign-layout {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.1fr) minmax(180px, .95fr) minmax(180px, .95fr);
+    gap: 8px;
+    min-height: 0;
+}
+
+.campaign-card {
+    min-width: 0;
+    background: var(--panel-bg);
+    border: 3px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: 3px 3px 0 rgba(0,0,0,.18);
+    box-sizing: border-box;
+}
+
+.campaign-card-title {
+    font-family: var(--ui-font);
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    border-bottom: 2px solid rgba(0,0,0,.35);
+    margin-bottom: 7px;
+    padding-bottom: 3px;
+}
+
+.campaign-shop-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+}
+
+.campaign-shop-info {
+    margin-top: 7px;
+    min-height: 56px;
+    max-height: 90px;
+    overflow-y: auto;
+    border: 2px dashed rgba(0,0,0,.2);
+    border-radius: 6px;
+    padding: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.campaign-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 7px;
+}
+
+.campaign-list {
+    max-height: 142px;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-content: flex-start;
+    padding-right: 3px;
+}
+
+.campaign-enemy-chip {
+    background: #ffecec;
+}
+
+.campaign-roster-chip {
+    background: #e9fbff;
+}
+
+.btn-reset.danger,
+.btn-fight.danger {
+    background: #c0392b !important;
+    color: #fff !important;
+}
+
+.btn-reset.save {
+    background: #16a085 !important;
+    color: #fff !important;
+}
+
+/* Center the single squad column in Free For All mode. */
+#row-2 .squad-section.ffa-squad-mode {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: stretch !important;
+}
+
+#row-2 .squad-section.ffa-squad-mode #p1SquadContainer {
+    width: min(100%, 720px) !important;
+    max-width: 720px !important;
+    flex: 0 1 720px !important;
+}
+
+@media (max-width: 880px) {
+    .tourney-builder-grid,
+    .campaign-layout {
+        grid-template-columns: 1fr !important;
+    }
+    .campaign-topline {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+
+/* --- FARREL TOURNAMENT START + TACTICAL CHESS REVAMP --- */
+.tourney-action-grid .start-pool {
+    background: #2ed573;
+    color: #061b0c;
+    border-color: #000;
+}
+
+.tourney-action-grid .fill-start {
+    background: #f1c40f;
+    color: #111;
+    border-color: #000;
+}
+
+.chess-hub {
+    width: 100%;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    background:
+        linear-gradient(135deg, rgba(0,0,0,.08), rgba(255,255,255,.15)),
+        var(--panel-bg);
+    border: 3px solid var(--panel-border);
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+
+.chess-topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.chess-topline h3 {
+    font-family: var(--ui-font);
+    margin: 0;
+    letter-spacing: 1px;
+    color: #6c5ce7;
+    text-shadow: 1px 1px 0 var(--panel-border);
+}
+
+.chess-topline p {
+    margin: 3px 0 0 0;
+    font-size: .82rem;
+    opacity: .82;
+}
+
+.chess-status-badge {
+    min-width: 165px;
+    padding: 8px 10px;
+    background: #111;
+    color: #f1c40f;
+    border: 2px solid var(--panel-border);
+    border-radius: 6px;
+    font-weight: 900;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chess-config-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(120px, 1fr));
+    gap: 8px;
+}
+
+.chess-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: .75rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.chess-field span {
+    opacity: .8;
+}
+
+.chess-action-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(110px, 1fr));
+    gap: 8px;
+}
+
+.chess-action-grid button {
+    width: 100%;
+}
+
+.chess-panels {
+    display: grid;
+    grid-template-columns: 1.2fr .8fr;
+    gap: 10px;
+}
+
+.chess-card {
+    background: rgba(0,0,0,.05);
+    border: 2px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 9px;
+    min-height: 74px;
+    box-sizing: border-box;
+}
+
+.chess-card-title {
+    font-family: var(--ui-font);
+    font-size: .95rem;
+    margin-bottom: 5px;
+    color: #6c5ce7;
+}
+
+.chess-role-list,
+.chess-objective-info {
+    font-size: .82rem;
+    line-height: 1.35;
+}
+
+.chess-role-list b {
+    color: #e67e22;
+}
+
+body.dark-mode .chess-card {
+    background: rgba(255,255,255,.06);
+}
+
+@media (max-width: 900px) {
+    .chess-config-grid,
+    .chess-action-grid,
+    .chess-panels {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* --- FARREL PATCH: TACTICAL CHESS SCROLL FIX --- */
+/* Tactical Chess is a special-mode panel, not a normal tab row.
+   This keeps it inside the resizable control panel and gives it its own scroll area. */
+#controlsPanel.controls.chess-mode-active {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    align-items: stretch !important;
+    align-content: stretch !important;
+}
+
+#controlsPanel.controls.chess-mode-active > #chessControls.chess-hub {
+    display: flex !important;
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: thin !important;
+    padding-right: 12px !important;
+}
+
+#controlsPanel.controls.chess-mode-active > #chessControls.chess-hub::-webkit-scrollbar {
+    width: 9px !important;
+}
+
+#controlsPanel.controls.chess-mode-active > #chessControls.chess-hub::-webkit-scrollbar-thumb {
+    background: rgba(108, 92, 231, 0.65) !important;
+    border-radius: 999px !important;
+    border: 2px solid rgba(255,255,255,0.45) !important;
+}
+
+#controlsPanel.controls.chess-mode-active > .control-row.active-control-row {
+    display: none !important;
+}
+
+/* When not in chess mode, make sure the hidden chess hub does not steal panel height. */
+#controlsPanel.controls:not(.chess-mode-active) > #chessControls.chess-hub {
+    flex: 0 0 auto !important;
+}
+
+/* Make dense chess settings readable while still scrollable on short panels. */
+#controlsPanel.controls.chess-mode-active .chess-config-grid,
+#controlsPanel.controls.chess-mode-active .chess-action-grid {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
+}
+
+#controlsPanel.controls.chess-mode-active .chess-panels {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+}
+
+#controlsPanel.controls.chess-mode-active .chess-card {
+    min-height: 0 !important;
+}
+
+@media (max-width: 700px) {
+    #controlsPanel.controls.chess-mode-active > #chessControls.chess-hub {
+        padding: 8px !important;
+    }
+}
+
+#controlsPanel.controls.chess-mode-active .chess-exit-btn {
+    background: #57606f !important;
+    color: #fff !important;
+    border-color: #000 !important;
+}

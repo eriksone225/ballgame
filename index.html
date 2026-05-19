@@ -53,18 +53,18 @@
             <option value="ffa">Free For All</option>
             <option value="clan">Clan Battle</option>
             <option value="tournament">Tournament (16 Teams)</option>
-            <option value="pet">Pet Simulator</option>
+            <option value="campaign">Campaign / Adventure</option>
             <option value="chess">Tactical Chess</option>
         </select>
         
         <div id="countControlRow" style="display:flex; gap:3px; align-items:center; justify-content: center;">
-    <input type="number" id="p1Count" value="1" min="1" max="100" 
+    <input type="number" id="p1Count" value="1" min="1" max="10000" 
            style="text-align: center; width: 35px; padding: 2px; height: 30px;" 
            onchange="updateSquadUI()" placeholder="#L">
 
     <span id="countVsLabel" style="font-size:0.7rem; font-weight:bold; color:#555;">VS</span>
 
-    <input type="number" id="p2Count" value="1" min="1" max="50" 
+    <input type="number" id="p2Count" value="1" min="1" max="10000" 
            style="text-align: center; width: 35px; padding: 2px; height: 30px;" 
            onchange="updateSquadUI()" placeholder="#R">
 
@@ -105,35 +105,231 @@
 
         <div style="display:flex; gap:2px; width: 100%;">
             <button class="btn-toggle" onclick="registerP1ToTourney()" style="background-color:#e67e22; flex-grow: 1; padding: 6px 2px; font-size: 0.8rem; white-space: nowrap;">+ Add P1</button>
-            <div id="poolCounter" style="background:#333; color:white; width: 35px; padding: 6px 0; font-size: 0.8rem; border:1px solid #000; text-align:center; display:flex; align-items:center; justify-content:center;">0/16</div>
+            <div id="poolCounterMini" style="background:#333; color:white; width: 35px; padding: 6px 0; font-size: 0.8rem; border:1px solid #000; text-align:center; display:flex; align-items:center; justify-content:center;">0/16</div>
             <button class="btn-toggle" onclick="clearTourneyPool()" style="background-color:#c0392b; width: 25px; padding: 6px 0; font-size: 0.8rem;">&#215;</button>
         </div>
     </div>
 </div>
 
-    <div id="tournamentControls" style="display:none; flex-direction:column; gap:5px; width: 100%; max-width:400px; text-align:center;">
-        <h3 style="margin:0; color:var(--text-color); font-family:var(--ui-font)">TOURNAMENT HUB</h3>
-        <div style="display:flex; align-items:center; gap:5px; justify-content:center; margin-bottom:5px;">
-    <label style="font-size:0.8rem; font-weight:bold;">Team Size:</label>
-    <input type="number" id="tourneyTeamSize" value="5" min="1" max="30" style="width:50px; text-align:center;" 
-       onchange="document.getElementById('p1Count').value = this.value; document.getElementById('p2Count').value = this.value; updateSquadUI();">
-</div>
-        <div style="display:flex; gap:5px;">
-            <button class="btn-reset" onclick="initTournament()" style="background:#27ae60; flex:1;">NEW RUN</button>
-            <button class="btn-reset" onclick="loadTournament()" style="background:#f39c12; flex:1;">LOAD JSON</button>
-            <button class="btn-reset" onclick="saveTournament()" style="background:#2980b9; flex:1;">SAVE JSON</button>
-            
+    <div id="tournamentControls" class="tournament-hub-v2" style="display:none;">
+        <div class="tourney-topline">
+            <div>
+                <h3>TOURNAMENT HUB</h3>
+                <p>Build a bracket, watch matches, quick-sim rounds, and crown a champion.</p>
+            </div>
+            <div id="tourneyChampionBanner" class="tourney-champion-banner">No champion yet</div>
         </div>
-        <div style="display:flex; gap:5px; margin-top:5px;">
-            <button class="btn-fight" onclick="playNextMatch('watch')" style="flex:1;">WATCH</button>
-            <button class="btn-fight" onclick="playNextMatch('sim')" style="flex:1; background:#7f8c8d;">QUICK SIM</button>
-            <button class="btn-reset" onclick="exitTournament()" style="background:#c0392b; width:auto; padding:2px 8px; font-size:0.8rem;">&#10006; EXIT</button>
+
+        <div class="tourney-config-grid">
+            <label class="tourney-field">
+                <span>Bracket</span>
+                <select id="tourneyBracketSize" onchange="updateTournamentUI()">
+                    <option value="8">8 Teams</option>
+                    <option value="16" selected>16 Teams</option>
+                    <option value="32">32 Teams</option>
+                </select>
+            </label>
+
+            <label class="tourney-field">
+                <span>Team Size</span>
+                <input type="number" id="tourneyTeamSize" value="5" min="1" max="30"
+                    onchange="syncTournamentTeamSizeToSquads()">
+            </label>
+
+            <label class="tourney-field">
+                <span>Seeding</span>
+                <select id="tourneySeedStyle" onchange="updateTournamentUI()">
+                    <option value="shuffle" selected>Random Seeds</option>
+                    <option value="seeded">Pool Order Seeds</option>
+                </select>
+            </label>
+
+            <label class="tourney-field">
+                <span>Rules</span>
+                <select id="tourneyRuleset" onchange="updateTournamentUI()">
+                    <option value="balanced" selected>Balanced</option>
+                    <option value="chaos">Chaos Upsets</option>
+                    <option value="survival">Survival Score</option>
+                </select>
+            </label>
         </div>
-        <div id="tourneyStatus" style="font-size:0.8rem; margin-top:5px; font-weight:bold;">No Active Tournament</div>
+
+        <div class="tourney-custom-builder" id="tourneyCustomBuilder">
+            <div class="tourney-panel-title">Custom Team Builder</div>
+            <div class="tourney-builder-grid">
+                <label class="tourney-field">
+                    <span>Team Name</span>
+                    <input id="tourneyCustomTeamName" type="text" value="My Bracket Team" placeholder="Team name">
+                </label>
+                <label class="tourney-field">
+                    <span>Choose Fighter</span>
+                    <select id="tourneyCustomFighterSelect"></select>
+                </label>
+                <button class="btn-reset" onclick="addTournamentCustomFighter()">Add Fighter</button>
+                <button class="btn-reset danger" onclick="clearTournamentCustomRoster()">Clear Team</button>
+                <button class="btn-fight add-bracket" onclick="addCustomTournamentTeamToBracket()">Add Bracket</button>
+            </div>
+            <div id="tourneyCustomRosterList" class="tourney-custom-roster-list">No custom fighters selected yet.</div>
+        </div>
+
+        <div class="tourney-action-grid">
+            <button class="btn-reset" onclick="registerP1ToTourney()">Add P1 Team</button>
+            <button class="btn-reset" onclick="addRandomTournamentTeam()">Add Bot Team</button>
+            <button class="btn-reset" onclick="fillTournamentPool()">Fill Pool</button>
+            <button class="btn-reset danger" onclick="clearTourneyPool()">Clear Pool</button>
+
+            <button class="btn-fight start-pool" onclick="startTournamentFromPool(false)">Start Pool Bracket</button>
+            <button class="btn-fight fill-start" onclick="startTournamentFromPool(true)">Fill + Start</button>
+            <button class="btn-fight" onclick="initTournament()">Auto Bracket</button>
+            <button class="btn-fight watch" onclick="playNextMatch('watch')">Watch Next</button>
+            <button class="btn-fight sim" onclick="playNextMatch('sim')">Sim Next</button>
+            <button class="btn-fight sim" onclick="simulateTournamentRound()">Sim Round</button>
+            <button class="btn-fight sim-all" onclick="simulateFullTournament()">Sim All</button>
+
+            <button class="btn-reset save" onclick="saveTournament()">Save</button>
+            <button class="btn-reset load" onclick="loadTournament()">Load</button>
+            <button class="btn-reset danger" onclick="exitTournament()">Exit</button>
+        </div>
+
+        <div class="tourney-progress-row">
+            <div id="poolCounter" class="tourney-counter">0/16</div>
+            <div id="tourneyStatus" class="tourney-status">No active tournament. Add teams or fill bracket.</div>
+        </div>
+
+        <div class="tourney-panels">
+            <div class="tourney-panel">
+                <div class="tourney-panel-title">Team Pool</div>
+                <div id="tourneyPoolList" class="tourney-pool-list">No teams added yet.</div>
+            </div>
+            <div class="tourney-panel bracket">
+                <div class="tourney-panel-title">Bracket</div>
+                <div id="tourneyBracketPanel" class="tourney-bracket-panel">Start a new bracket to see matches.</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="campaignControls" class="campaign-hub" style="display:none;">
+        <div class="campaign-topline">
+            <div>
+                <h3>CAMPAIGN / ADVENTURE</h3>
+                <p>Buy fighters, build a squad, and clear increasingly harder enemy encounters.</p>
+            </div>
+            <div id="campaignStatusBadge" class="campaign-status-badge">Level 1 · $260</div>
+        </div>
+
+        <div class="campaign-layout">
+            <section class="campaign-card campaign-shop-card">
+                <div class="campaign-card-title">Fighter Shop</div>
+                <div class="campaign-shop-row">
+                    <select id="campaignShopSelect"></select>
+                    <button class="btn-fight" onclick="buyCampaignFighter()">Buy</button>
+                </div>
+                <div id="campaignShopInfo" class="campaign-shop-info">Choose a fighter to see price and role.</div>
+                <div class="campaign-action-row">
+                    <button class="btn-reset" onclick="autoBuyCampaignSquad()">Auto Buy</button>
+                    <button class="btn-reset danger" onclick="clearCampaignRoster()">Clear Squad</button>
+                    <button class="btn-reset save" onclick="saveCampaignState(true)">Save</button>
+                    <button class="btn-reset danger" onclick="resetCampaignRun()">New Run</button>
+                </div>
+            </section>
+
+            <section class="campaign-card">
+                <div class="campaign-card-title">Your Squad</div>
+                <div id="campaignRosterList" class="campaign-list">No fighters bought yet.</div>
+            </section>
+
+            <section class="campaign-card">
+                <div class="campaign-card-title">Next Enemy</div>
+                <div id="campaignEnemyPreview" class="campaign-list">Enemy scouting not ready.</div>
+                <div class="campaign-action-row">
+                    <button class="btn-fight" onclick="startCampaignBattle()">Start Level</button>
+                    <button class="btn-reset" onclick="rerollCampaignEnemy()">Scout Again</button>
+                </div>
+            </section>
+        </div>
     </div>
 </div>
             </div>
     </div>
+
+
+    <div id="chessControls" class="chess-hub" style="display:none;">
+        <div class="chess-topline">
+            <div>
+                <h3>TACTICAL CHESS</h3>
+                <p>Protect your king, control the center, promote pawns, and use special pieces like a living chess army.</p>
+            </div>
+            <div id="chessStatusBadge" class="chess-status-badge">King Hunt · Ready</div>
+        </div>
+
+        <div class="chess-config-grid">
+            <label class="chess-field">
+                <span>Board Setup</span>
+                <select id="chessSetupSelect" onchange="renderTacticalChessUI()">
+                    <option value="classic" selected>Classic Army</option>
+                    <option value="blitz">Blitz Pieces</option>
+                    <option value="fortress">Fortress Board</option>
+                    <option value="chaos">Chaos Board</option>
+                </select>
+            </label>
+
+            <label class="chess-field">
+                <span>Objective</span>
+                <select id="chessObjectiveSelect" onchange="renderTacticalChessUI()">
+                    <option value="king" selected>King Hunt</option>
+                    <option value="control">Control Points</option>
+                    <option value="hybrid">Hybrid War</option>
+                </select>
+            </label>
+
+            <label class="chess-field">
+                <span>Opening</span>
+                <select id="chessOpeningSelect" onchange="renderTacticalChessUI()">
+                    <option value="balanced" selected>Balanced</option>
+                    <option value="aggressive">Aggressive</option>
+                    <option value="defensive">Defensive</option>
+                </select>
+            </label>
+
+            <label class="chess-field">
+                <span>Piece Labels</span>
+                <select id="chessLabelsSelect" onchange="renderTacticalChessUI()">
+                    <option value="on" selected>On</option>
+                    <option value="off">Off</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="chess-action-grid">
+            <button class="btn-fight" onclick="startTacticalChess()">Start Tactical Chess</button>
+            <button class="btn-reset" onclick="resetTacticalChessBoard()">Reset Board</button>
+            <button class="btn-reset" onclick="previewTacticalChessBoard()">Preview Setup</button>
+            <button class="btn-reset" onclick="explainTacticalChess()">Rules</button>
+            <button class="btn-reset chess-exit-btn" onclick="exitTacticalChessMode()">Exit Chess</button>
+        </div>
+
+        <div class="chess-panels">
+            <section class="chess-card">
+                <div class="chess-card-title">Piece Roles</div>
+                <div class="chess-role-list">
+                    <b>King</b> wins or loses the game. 
+                    <b>Queen</b> teleports and disrupts. 
+                    <b>Rooks</b> laser down files. 
+                    <b>Bishops</b> zap diagonals. 
+                    <b>Knights</b> dive and flank. 
+                    <b>Pawns</b> can promote if they cross the center.
+                </div>
+            </section>
+
+            <section class="chess-card">
+                <div class="chess-card-title">Live Objective</div>
+                <div id="chessObjectiveInfo" class="chess-objective-info">
+                    King Hunt: destroy the enemy king to checkmate.
+                </div>
+            </section>
+        </div>
+    </div>
+
 
     <div id="row-4" class="control-row">
     <div class="settings-group" style="display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%;">
@@ -144,6 +340,13 @@
             <button id="soundBtn" class="btn-toggle" onclick="toggleSound()" style="width: auto;">Sound: Off</button>
             <button id="advBtn" class="btn-toggle" onclick="toggleAdvancedMode()" style="width: auto;">Adv. Mode: Off</button>
             <button id="nameBtn" class="btn-toggle" onclick="toggleCharacterNames()" style="width: auto;">Names: OFF</button>
+            <button id="fighterNumberBtn" class="btn-toggle" onclick="toggleFighterNumbers()" style="width: auto;">Numbers: OFF</button>
+            <button id="suddenDeathBtn" class="btn-toggle" onclick="toggleSuddenDeathMode()" style="width: auto;">Sudden Death: OFF</button>
+            <button id="koConfettiBtn" class="btn-toggle" onclick="toggleKOConfetti()" style="width: auto;">KO Confetti: OFF</button>
+            <button id="showdownBtn" class="btn-toggle active" onclick="toggleFinalShowdown()" style="width: auto;">Showdown: ON</button>
+            <button id="rageModeBtn" class="btn-toggle" onclick="toggleRageMode()" style="width: auto;">Rage Mode: OFF</button>
+            <button id="powerDropsBtn" class="btn-toggle" onclick="togglePowerDrops()" style="width: auto;">Power Drops: OFF</button>
+            <button id="rivalLinesBtn" class="btn-toggle" onclick="toggleRivalLines()" style="width: auto;">Rival Lines: OFF</button>
             <button id="trailBtn" class="btn-toggle active" onclick="toggleProjectileTrails()" style="width: auto;">Trails: ON</button>
             <button id="cineBtn" class="btn-toggle" onclick="toggleCinematicCamera()" style="width: auto;">Cine Cam: OFF</button>
             <button id="fullscreenBtn" class="btn-toggle" onclick="toggleWatchFullscreen()" style="width: auto;">Fullscreen</button>
@@ -202,7 +405,23 @@
             <option value="normal" selected>Map: Normal</option>
             <option value="large">Map: Large (War)</option>
             <option value="huge">Map: Huge (Open World)</option>
+            <option value="massive">Map: Massive (1000 Fighters)</option>
+            <option value="mega">Map: Mega (10000 Fighters)</option>
+            <option value="custom">Map: Custom Size</option>
         </select>
+
+        <div id="customMapControls" class="custom-map-controls" style="display:none;">
+            <div class="custom-map-row">
+                <input id="customMapWidth" type="number" min="300" max="12000" value="3000" title="Custom map width">
+                <span>×</span>
+                <input id="customMapHeight" type="number" min="300" max="9000" value="2000" title="Custom map height">
+                <button class="btn-toggle" onclick="applyCustomMapSize()">Apply</button>
+            </div>
+            <div class="custom-map-presets">
+                <button class="btn-toggle" onclick="setMassBattlePreset(1000)">1000 FFA</button>
+                <button class="btn-toggle" onclick="setMassBattlePreset(10000)">10000 FFA</button>
+            </div>
+        </div>
 
         <select id="arenaSelect" onchange="changeArenaTheme()" style="margin-top: 5px;">
             <option value="white" selected>Arena: Standard</option>
@@ -262,6 +481,7 @@
 </div>
     </div>
         </div>
+    <div id="controlResizeHandle" class="control-resize-handle" title="Drag to resize control panel height"></div>
 </div>
 
     
@@ -298,6 +518,27 @@
                 <button class="fullscreen-speed-btn" data-speed="1.5" onclick="setFullscreenTimeScale(1.5, this)">1.5x</button>
                 <button class="fullscreen-speed-btn" data-speed="2" onclick="setFullscreenTimeScale(2, this)">2x</button>
                 <button class="fullscreen-speed-btn" data-speed="3" onclick="setFullscreenTimeScale(3, this)">3x</button>
+            </div>
+
+            <div id="fullscreenSetupControls" class="fullscreen-setup-controls" aria-label="Fullscreen setup controls">
+                <select id="fsModeSelect" onchange="fullscreenChangeGameMode(this.value)" title="Game mode">
+                    <option value="team">Team</option>
+                    <option value="ffa">FFA</option>
+                    <option value="clan">Clan</option>
+                    <option value="tournament">Tournament</option>
+                    <option value="campaign">Campaign</option>
+                    <option value="chess">Chess</option>
+                </select>
+
+                <div class="fs-count-box">
+                    <span>L</span>
+                    <input id="fsP1Count" type="number" min="1" max="10000" value="1" onchange="fullscreenApplyCounts()">
+                    <span>R</span>
+                    <input id="fsP2Count" type="number" min="1" max="10000" value="1" onchange="fullscreenApplyCounts()">
+                </div>
+
+                <button class="fullscreen-mini-action" onclick="fullscreenRandomizeCounts()">Rnd #</button>
+                <button class="fullscreen-mini-action" onclick="fullscreenRandomizeSquads('all')">Rnd Fighters</button>
             </div>
         </div>
     </div>

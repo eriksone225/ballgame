@@ -486,6 +486,7 @@ function setGodPower(mode) {
         // --- ADVANCED MODE STATE ---
         let advancedMode = false;
 let characterNamesEnabled = false;
+let fighterNumbersEnabled = false;
 
 const BALL_NAME_ADJECTIVES = [
     'Blazing', 'Lucky', 'Iron', 'Tiny', 'Feral', 'Cosmic', 'Turbo', 'Sneaky',
@@ -679,6 +680,7 @@ function getFullscreenBattleStatusText() {
 function updateFullscreenHud() {
     const isFullscreen = isWatchFullscreenActive();
     applyFullscreenPanelClasses();
+    syncFullscreenSetupControls();
 
     const btn = document.getElementById('fullscreenBtn');
     const fightBtn = document.getElementById('fullscreenFightBtn');
@@ -1027,6 +1029,7 @@ function ensureBattleStat(entity) {
 
     if (!battleStats[entity.id]) {
         battleStats[entity.id] = {
+    id: entity.id,
     name: typeof getEntityName === 'function' ? getEntityName(entity) : entity.type,
     type: entity.type,
     color: entity.color || '#777',
@@ -1489,6 +1492,16 @@ function toggleCharacterNames() {
     }
 }
 
+function toggleFighterNumbers() {
+    fighterNumbersEnabled = !fighterNumbersEnabled;
+
+    const btn = document.getElementById('fighterNumberBtn');
+    if (btn) {
+        btn.innerText = fighterNumbersEnabled ? "Numbers: ON" : "Numbers: OFF";
+        btn.classList.toggle('active', fighterNumbersEnabled);
+    }
+}
+
         function toggleAdvancedMode() {
             advancedMode = !advancedMode;
             const btn = document.getElementById('advBtn');
@@ -1549,7 +1562,7 @@ function getTrackableFighters(teamFilter = 'all') {
         .filter(e => {
             if (!e) return false;
             if (e.hp <= 0) return false;
-            if (e.type === 'turret' || e.type === 'boid') return false;
+            if (e.type === 'turret' || e.type === 'boid' || e.type === 'mammoth_mount') return false;
             if (e.parentId) return false;
 
             if (teamFilter === 1 && e.team !== 1) return false;
@@ -1582,12 +1595,26 @@ function getFighterNumber(ent) {
 }
 
 function getFighterLabel(ent) {
-    if (ent.displayName) return ent.displayName;
+    if (!ent) return "";
 
     const num = getFighterNumber(ent);
-    if (!num) return "";
+    const hasNumber = !!num;
+    const baseName = ent.displayName || (hasNumber ? `Fighter ${num}` : "");
 
-    return `Fighter ${num}`;
+    if (characterNamesEnabled && fighterNumbersEnabled) {
+        if (ent.displayName && hasNumber) return `${ent.displayName} ${num}`;
+        return hasNumber ? `Fighter ${num}` : baseName;
+    }
+
+    if (characterNamesEnabled) {
+        return baseName;
+    }
+
+    if (fighterNumbersEnabled) {
+        return hasNumber ? `Fighter ${num}` : "";
+    }
+
+    return "";
 }
 
 function trackFighterByNumber(number) {
@@ -2360,20 +2387,30 @@ function findBestAdaptoBarrelTarget(e) {
 
     enemies.forEach(enemy => {
         const distToAdapto = Math.sqrt((enemy.x - e.x) ** 2 + (enemy.y - e.y) ** 2);
-        if (distToAdapto > 560) return;
+        if (distToAdapto > 560 || distToAdapto < 135) return;
 
         const enemyCluster = enemies.filter(other =>
             Math.sqrt((other.x - enemy.x) ** 2 + (other.y - enemy.y) ** 2) < 150
         ).length;
 
-        const alliesNearEnemy = getAliveAlliesNear(e, enemy.x, enemy.y, 190).length;
-        const losBonus = hasLineOfSight(e, enemy) ? 80 : -40;
+        const enemyDisabled =
+            enemy.frozen > 0 ||
+            enemy.isDancing ||
+            enemy.isParanoid ||
+            enemy.trappedBy;
 
-        // Prefer clustered enemies, avoid friendly fire, avoid impossible long shots
+        // Adapto should not waste barrels into a clean 1v1. He wants setup first:
+        // flashbang/stun/trap OR a genuine cluster.
+        if (!enemyDisabled && enemyCluster < 2) return;
+
+        const alliesNearEnemy = getAliveAlliesNear(e, enemy.x, enemy.y, 210).length;
+        const losBonus = hasLineOfSight(e, enemy) ? 80 : -80;
+
         const score =
-            enemyCluster * 90 -
-            alliesNearEnemy * 140 -
-            distToAdapto * 0.18 +
+            enemyCluster * 85 +
+            (enemyDisabled ? 140 : 0) -
+            alliesNearEnemy * 170 -
+            distToAdapto * 0.12 +
             losBonus;
 
         if (score > bestScore && alliesNearEnemy === 0) {
@@ -2382,21 +2419,20 @@ function findBestAdaptoBarrelTarget(e) {
         }
     });
 
-    return bestTarget;
+    return bestScore > 85 ? bestTarget : null;
 }
 
 function launchAdaptoBarrel(e, target) {
     if (!target) return;
 
-    const speed = 8;
+    const speed = 6.2;
     const dx = target.x - e.x;
     const dy = target.y - e.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-    // Lead the target slightly
     const timeToArrive = dist / speed;
-    const predX = target.x + (target.vx || 0) * timeToArrive;
-    const predY = target.y + (target.vy || 0) * timeToArrive;
+    const predX = target.x + (target.vx || 0) * timeToArrive * 0.65;
+    const predY = target.y + (target.vy || 0) * timeToArrive * 0.65;
 
     const angle = Math.atan2(predY - e.y, predX - e.x);
 
@@ -2411,28 +2447,27 @@ function launchAdaptoBarrel(e, target) {
         mass: 3.2,
         skin: 'adapto_tactical',
         spawnedByFighter: true,
-        hp: 26,
-        maxHp: 26,
-        friction: 0.985,
+        hp: 34,
+        maxHp: 34,
+        friction: 0.992,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
 
-        // Tactical barrel data
         tactical: true,
         team: e.team,
         ownerId: e.id,
         proximityArmed: true,
-        armTime: 18,
-        detectionRadius: 65,
-        tacticalFuse: 360
+        armTime: 72,
+        detectionRadius: 52,
+        tacticalFuse: 520
     });
 
-    e.barrelCooldown = 420;
+    e.barrelCooldown = 520;
 
-    spawnParticles(spawnX, spawnY, '#ffcc00', 8);
-    spawnDamageText(e.x, e.y - 28, "BARREL!", "#ffcc00", true);
+    spawnParticles(spawnX, spawnY, '#b2bec3', 8);
+    spawnDamageText(e.x, e.y - 28, "TACTICAL BARREL", "#dfe6e9", true);
 
-    if (typeof playSound === 'function') playSound('cannon');
+    if (typeof playSound === 'function') playSound('cannon', 0.65);
 }
 
 function findAdaptoShootableBarrel(e) {
@@ -2801,6 +2836,7 @@ canvas.addEventListener('contextmenu', function(e) {
         // --- DATA (MODIFIED: Sorted) ---
         const FIGHTER_DATA = {
             'adapto': { hp: 140, dmg: 'Adaptive', ability: 'Tactical AI + Barrel Trap', desc: 'Adapts between sword, gun, shield, flashbangs, flanking, and tactical proximity barrels.' },
+            'aquamarine': { hp: 105, dmg: 'Water', ability: 'Fish Swarm + Water Spray', desc: 'Summons biting fish and sprays water that damages and pushes enemies.' },
             'alchemist': { hp: 115, dmg: 'Debuff', ability: 'Chaos Potions', desc: 'Cycles potions: Poison > Slow > Blast.' },
             'bard': { hp: 90, dmg: 'Low', ability: 'Songs: Chaos & Dance', desc: 'Paranoia (Attack Friends) & Dance (Stun). Attacks with Guitar.' },
             'bow': { hp: 80, dmg: 'Medium', ability: 'Triple Shot & Fire', desc: 'Rapid arrows. Special: Flaming Arrow (Explodes + Burn) every 4s.' },
@@ -2816,6 +2852,7 @@ canvas.addEventListener('contextmenu', function(e) {
             'knight': { hp: 130, dmg: 'Medium', ability: 'Ram & Shield', desc: 'Shield blocks front. Ram (4s CD) deals 2x damage.' },
             'lance': { hp: 100, dmg: 'High', ability: 'Extending Reach', desc: 'Lance grows to snipe distant foes. Hits push enemies back.' },
             'laser': { hp: 90, dmg: 'Variable', ability: 'Pushback Laser', desc: 'Beams knock enemies far back. 3 Modes: Short, Med, Death.' },
+            'mammoth': { hp: 135, dmg: 'Heavy', ability: 'Mammoth Rider', desc: 'Spawns and rides a mammoth. The mount tramples enemies and withers if the rider dies.' },
             'necromancer': { hp: 95, dmg: 'Blight', ability: 'Raise Dead', desc: 'Raises enemies dying nearby as Skeletons. Attacks with a withering beam.' },
             'orbiter': { hp: 100, dmg: 'High', ability: 'Orbiting Bits', desc: 'Shoots shield bits. Orbs deal 25 DMG and freeze foes for 1s.' },
             'pirate': { hp: 120, dmg: 'High', ability: 'Cannon & Dagger', desc: 'Aggressive. Fires Cannon (4s CD) while chasing.' },
@@ -2823,6 +2860,7 @@ canvas.addEventListener('contextmenu', function(e) {
             'rogue': { hp: 90, dmg: 'High', ability: 'Ghost Form', desc: 'Invulnerable while Stealthed (2.5s CD). 2.5x Backstab.' },
             'samurai': { hp: 110, dmg: 'Burst', ability: 'Iaijutsu Dash', desc: 'Dashes through foes. Delayed massive damage cut.' },
             'scythe': { hp: 100, dmg: 'V. High', ability: 'Spin Attack (3s CD)', desc: 'Spins for 1s, then rests for 3s.' },
+            'spearer': { hp: 105, dmg: 'Pierce', ability: 'Skewer Spear Kit', desc: 'Throws normal, explosive, and bouncing spears. Pins enemies near walls, objects, or other balls.' },
             'soldier': { hp: 110, dmg: 'High', ability: 'Burst Fire & Reload', desc: 'Cross-map range. Stops, aims, and fires a 3s burst. Then evades while reloading (2s).' }, 
             'spatial': { hp: 100, dmg: 'High', ability: 'Pinball Slam', desc: 'Traps up to 3 enemies. Slams between them rapidly. 4s CD.' }, 
             'swarm': { hp: 15, dmg: 'Swarm', ability: 'Boids AI', desc: 'A flock of 20 tiny units. Flocking behavior (Separate, Align, Cohere).' },
@@ -2837,6 +2875,7 @@ canvas.addEventListener('contextmenu', function(e) {
 
         const FIGHTER_VISUALS = {
     adapto: { tag: "AD", color: "#dfe6e9", accent: "#00cec9" },
+    aquamarine: { tag: "AQ", color: "#00cec9", accent: "#81ecec" },
     alchemist: { tag: "AL", color: "#6c5ce7", accent: "#55efc4" },
     bard: { tag: "BD", color: "#a0522d", accent: "#fdcb6e" },
     bow: { tag: "BW", color: "#8b4513", accent: "#00cec9" },
@@ -2852,6 +2891,8 @@ canvas.addEventListener('contextmenu', function(e) {
     knight: { tag: "KN", color: "#95a5a6", accent: "#f1c40f" },
     lance: { tag: "LC", color: "#b2bec3", accent: "#636e72" },
     laser: { tag: "LZ", color: "#ff4757", accent: "#ffbe76" },
+    mammoth: { tag: "MM", color: "#8d6e63", accent: "#d7ccc8" },
+    mammoth_mount: { tag: "MT", color: "#6d4c41", accent: "#d7ccc8" },
     necromancer: { tag: "NC", color: "#2d3436", accent: "#55efc4" },
     orbiter: { tag: "OR", color: "#6c5ce7", accent: "#a29bfe" },
     pirate: { tag: "PR", color: "#2d3436", accent: "#e17055" },
@@ -2859,6 +2900,7 @@ canvas.addEventListener('contextmenu', function(e) {
     rogue: { tag: "RO", color: "#2d3436", accent: "#b2bec3" },
     samurai: { tag: "SM", color: "#d63031", accent: "#ff7675" },
     scythe: { tag: "SC", color: "#636e72", accent: "#dfe6e9" },
+    spearer: { tag: "SR", color: "#7f8c8d", accent: "#f5f5dc" },
     soldier: { tag: "SD", color: "#34495e", accent: "#bdc3c7" },
     spatial: { tag: "SP", color: "#0984e3", accent: "#74b9ff" },
     swarm: { tag: "SW", color: "#fdcb6e", accent: "#2d3436" },
@@ -3542,11 +3584,23 @@ if (GAME_MODE === 'ffa') {
             <div class="squad-modern-title">${teamName} Squad</div>
             <div class="squad-modern-subtitle">${count} fighter${count === 1 ? '' : 's'}</div>
         </div>
-        <button class="btn-add-slot compact" type="button">Add</button>
+        <button class="btn-duplicate-slot compact duplicate-last" type="button" title="Duplicate last fighter">Dup</button>
+            <button class="btn-add-slot compact" type="button">Add</button>
     `;
-    header.querySelector('button').onclick = function() {
-        addSlot(prefix);
-    };
+    const duplicateLastBtn = header.querySelector('.duplicate-last');
+    const addBtn = header.querySelector('.btn-add-slot');
+
+    if (duplicateLastBtn) {
+        duplicateLastBtn.onclick = function() {
+            duplicateLastSlot(prefix);
+        };
+    }
+
+    if (addBtn) {
+        addBtn.onclick = function() {
+            addSlot(prefix);
+        };
+    }
     container.appendChild(header);
 
     for (let i = 0; i < count; i++) {
@@ -3557,6 +3611,7 @@ if (GAME_MODE === 'ffa') {
         const card = document.createElement('div');
         card.className = 'fighter-card';
         card.dataset.index = i;
+        card.dataset.type = safeType || 'empty';
 
         card.innerHTML = `
             <div class="fighter-card-top">
@@ -3569,8 +3624,11 @@ if (GAME_MODE === 'ffa') {
                     <div class="fighter-card-ability">${data ? data.ability : 'Choose a class'}</div>
                 </div>
 
-                <button class="btn-track modern-track" type="button" title="Track Camera">Cam</button>
-                <button class="btn-remove-slot modern-remove" type="button" title="Remove Fighter">Remove</button>
+                <div class="fighter-card-actions">
+                    <button class="btn-track modern-track" type="button" title="Track Camera">Cam</button>
+                    <button class="btn-duplicate-slot modern-duplicate" type="button" title="Duplicate this fighter">Dup</button>
+                    <button class="btn-remove-slot modern-remove" type="button" title="Remove Fighter">×</button>
+                </div>
             </div>
 
            <div class="fighter-select-wrap">
@@ -3591,6 +3649,7 @@ if (GAME_MODE === 'ffa') {
         const input = card.querySelector('input');
 const list = card.querySelector('.custom-dropdown-list');
 const trackBtn = card.querySelector('.modern-track');
+const duplicateBtn = card.querySelector('.modern-duplicate');
 const removeBtn = card.querySelector('.modern-remove');
 const clearTextBtn = card.querySelector('.fighter-clear-btn');
 const randomTextBtn = card.querySelector('.fighter-random-btn');
@@ -3616,6 +3675,13 @@ randomTextBtn.onmousedown = function(e) {
             e.preventDefault();
             trackFighter(i, prefix);
         };
+
+        if (duplicateBtn) {
+            duplicateBtn.onclick = function(e) {
+                e.preventDefault();
+                duplicateSlot(prefix, i);
+            };
+        }
 
         removeBtn.onclick = function(e) {
             e.preventDefault();
@@ -3738,10 +3804,58 @@ function addSlot(prefix) {
     updateSquadUI();
 }
 
+function normalizeFighterInputValue(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    if (FIGHTER_OPTIONS.includes(raw)) return raw;
+
+    const normalized = raw.replace(/\s+/g, ' ');
+    const match = FIGHTER_OPTIONS.find(opt => titleCaseName(opt).toLowerCase() === normalized);
+    return match || '';
+}
+
+function getSquadInputValues(prefix) {
+    return Array.from(document.querySelectorAll(`.${prefix}-input`))
+        .map(input => normalizeFighterInputValue(input.value));
+}
+
+function duplicateSlot(prefix, index) {
+    const currentTypes = getSquadInputValues(prefix);
+    const sourceType = currentTypes[index] || 'unarmed';
+
+    currentTypes.splice(index + 1, 0, sourceType);
+
+    const countInput = document.getElementById(prefix + 'Count');
+    countInput.value = currentTypes.length;
+
+    const containerId = prefix === 'p1' ? 'p1SquadContainer' : 'p2SquadContainer';
+    generateSelectors(containerId, currentTypes.length, prefix, currentTypes);
+
+    initializeSquads();
+
+    if (typeof playSound === 'function') playSound('equip');
+}
+
+function duplicateLastSlot(prefix) {
+    const currentTypes = getSquadInputValues(prefix);
+    const sourceType = currentTypes[currentTypes.length - 1] || 'unarmed';
+
+    currentTypes.push(sourceType);
+
+    const countInput = document.getElementById(prefix + 'Count');
+    countInput.value = currentTypes.length;
+
+    const containerId = prefix === 'p1' ? 'p1SquadContainer' : 'p2SquadContainer';
+    generateSelectors(containerId, currentTypes.length, prefix, currentTypes);
+
+    initializeSquads();
+
+    if (typeof playSound === 'function') playSound('equip');
+}
+
 function removeSlot(prefix, index) {
     // 1. Get all current values for this side
     const inputs = document.querySelectorAll(`.${prefix}-input`);
-    let currentTypes = Array.from(inputs).map(inp => inp.value);
+    let currentTypes = Array.from(inputs).map(inp => normalizeFighterInputValue(inp.value));
 
     // 2. Remove the specific item from the array
     currentTypes.splice(index, 1);
@@ -3824,7 +3938,7 @@ function removeSlot(prefix, index) {
 }
         function createFighter(type, x, y, team, isDupe = false, parentId = null, hpOverride = null, spawnSide = null, spawnIndex = null) {
             // FIX: Allow internal types ('turret') to pass validation, otherwise default to 'unarmed'.
-           const INTERNAL_TYPES = ['turret', 'boid', 'binder', 'skeleton'];
+           const INTERNAL_TYPES = ['turret', 'boid', 'binder', 'skeleton', 'mammoth_mount'];
 
             if (!INTERNAL_TYPES.includes(type) && (!FIGHTER_OPTIONS.includes(type) || type === 'empty')) {
                 type = 'unarmed';
@@ -3856,6 +3970,8 @@ function removeSlot(prefix, index) {
         baseHp = 60; // <--- FIX: Give the pet explicit HP so it doesn't crash
     } else if (type === 'skeleton') {
         baseHp = 40; // <--- FIX: Ensure skeletons don't crash either
+    } else if (type === 'mammoth_mount') {
+        baseHp = 190;
     } else {
         baseHp = FIGHTER_DATA[type] ? FIGHTER_DATA[type].hp : 100; // Safety fallback
     }
@@ -3967,6 +4083,17 @@ function removeSlot(prefix, index) {
                 mineCooldown: 0,
                 maxTraps: 3,
                 trappedBy: null, // ID of the trap owner, if trapped
+
+                // Aquamarine
+                fishCooldown: 0,
+                waterCooldown: 0,
+                waterSprayTimer: 0,
+
+                // Mammoth
+                mammothId: null,
+                mammothSpawnCooldown: 0,
+                mammothStompCooldown: 0,
+
                 // Spatial
                 portalCooldown: 0,
                 
@@ -4049,6 +4176,13 @@ if (spawnSide && spawnIndex !== null) {
                     fighter.hp = 140;
                     break;
                 case 'lance': fighter.reach = 80; fighter.mass = 1.2; break;
+                case 'aquamarine':
+                    fighter.mass = 1.05;
+                    fighter.reach = 260;
+                    fighter.fishCooldown = 45;
+                    fighter.waterCooldown = 20;
+                    fighter.waterSprayTimer = 0;
+                    break;
                 case 'scythe': fighter.reach = 70; fighter.swingSpeed = 0.15; fighter.swingDir = 1; break;
                 case 'grower': fighter.mass = 1.2; fighter.radius = 15; fighter.growthRate = 0.1; fighter.maxRadius = 350; 
                 fighter.blockTimer = 0; fighter.blockCooldown = 0; fighter.isBlocking = false; 
@@ -4072,12 +4206,26 @@ if (spawnSide && spawnIndex !== null) {
     break;
                 case 'knight': fighter.reach = 60; fighter.shieldAngle = 0; fighter.mass = 1.5; break;
                 case 'orbiter': fighter.orbCount = 6; fighter.orbAngle = 0; break;
+                case 'spearer':
+                    fighter.mass = 1.15;
+                    fighter.reach = 620;
+                    fighter.spearCooldown = 35;
+                    fighter.explosiveSpearCooldown = 150;
+                    fighter.bounceSpearCooldown = 100;
+                    break;
                 case 'soldier': 
                 case 'dualist': // Add this line
                     fighter.mass = 1.3; 
                     fighter.reach = 10000; 
                     break;
                 case 'pirate': fighter.reach = 50; fighter.mass = 1.4; break;
+                case 'mammoth':
+                    fighter.mass = 1.7;
+                    fighter.radius = 18;
+                    fighter.reach = 65;
+                    fighter.mammothSpawnCooldown = 0;
+                    fighter.mammothStompCooldown = 0;
+                    break;
                 case 'grabber': fighter.mass = 1.6; break;
                 case 'regenerator': fighter.mass = 2.0; fighter.bravery = 1.0; fighter.blockTimer = 0; fighter.blockCooldown = 0; fighter.isBlocking = false; break;
                 case 'unarmed': fighter.mass = 2.0; fighter.blockTimer = 0; fighter.blockCooldown = 0; fighter.isBlocking = false; break;
@@ -4134,6 +4282,14 @@ if (spawnSide && spawnIndex !== null) {
             fighter.hp = 40; // Fragile
             fighter.maxHp = 40;
             fighter.bravery = 1.0; // Fearless melee
+            break;
+        case 'mammoth_mount':
+            fighter.mass = 5.5;
+            fighter.radius = 34;
+            fighter.reach = 70;
+            fighter.hp = Math.max(fighter.hp || 0, 190);
+            fighter.maxHp = Math.max(fighter.maxHp || 0, 190);
+            fighter.bravery = 1.0;
             break;
             case 'binder':
     fighter.radius = 12;      // Small
@@ -4733,6 +4889,471 @@ if (slowMoTimer > 0) {
 }
 
 
+
+// --- LATE GAMEPLAY PATCH: FULLSCREEN SETUP + NEW FIGHTERS + SMARTER AI ---
+function getDistance(a, b) {
+    if (!a || !b) return Infinity;
+    return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+}
+
+function getEnemyCandidatesFor(unit) {
+    return entities.filter(ent =>
+        ent &&
+        ent.hp > 0 &&
+        ent.id !== unit.id &&
+        ent.team !== unit.team &&
+        ent.type !== 'turret' &&
+        ent.type !== 'boid' &&
+        ent.type !== 'mammoth_mount' &&
+        !ent.isStealthed &&
+        !ent.isFeigning
+    );
+}
+
+function findClosestEnemyFor(unit) {
+    const enemies = getEnemyCandidatesFor(unit);
+    let best = null;
+    let bestDist = Infinity;
+
+    enemies.forEach(enemy => {
+        const d = getDistance(unit, enemy);
+        if (d < bestDist) {
+            bestDist = d;
+            best = enemy;
+        }
+    });
+
+    return best;
+}
+
+function setGameModeFromValue(mode) {
+    const modeSelect = document.getElementById('modeSelect');
+    if (modeSelect) {
+        modeSelect.value = mode;
+        toggleGameMode();
+    }
+}
+
+function syncFullscreenSetupControls() {
+    const modeSelect = document.getElementById('modeSelect');
+    const fsMode = document.getElementById('fsModeSelect');
+    const p1 = document.getElementById('p1Count');
+    const p2 = document.getElementById('p2Count');
+    const fsP1 = document.getElementById('fsP1Count');
+    const fsP2 = document.getElementById('fsP2Count');
+
+    if (modeSelect && fsMode && fsMode.value !== modeSelect.value) fsMode.value = modeSelect.value;
+    if (p1 && fsP1 && fsP1.value !== p1.value) fsP1.value = p1.value;
+    if (p2 && fsP2 && fsP2.value !== p2.value) fsP2.value = p2.value;
+}
+
+function fullscreenChangeGameMode(mode) {
+    if (!isSetupPhase) {
+        showCustomMessage('Fullscreen Setup', 'Reset before changing game mode.');
+        syncFullscreenSetupControls();
+        return;
+    }
+
+    setGameModeFromValue(mode);
+    syncFullscreenSetupControls();
+    updateFullscreenHud();
+}
+
+function fullscreenApplyCounts() {
+    if (!isSetupPhase) {
+        showCustomMessage('Fullscreen Setup', 'Reset before changing fighter count.');
+        syncFullscreenSetupControls();
+        return;
+    }
+
+    const fsP1 = document.getElementById('fsP1Count');
+    const fsP2 = document.getElementById('fsP2Count');
+    const p1 = document.getElementById('p1Count');
+    const p2 = document.getElementById('p2Count');
+
+    if (fsP1 && p1) p1.value = clamp(parseInt(fsP1.value) || 1, 1, 100);
+    if (fsP2 && p2) p2.value = clamp(parseInt(fsP2.value) || 1, 1, 100);
+
+    updateSquadUI();
+    initializeSquads();
+    resetPositions();
+    syncFullscreenSetupControls();
+    updateFullscreenHud();
+}
+
+function fullscreenRandomizeCounts() {
+    if (!isSetupPhase) {
+        showCustomMessage('Fullscreen Setup', 'Reset before randomizing count.');
+        return;
+    }
+
+    randomizeCounts();
+    syncFullscreenSetupControls();
+    updateFullscreenHud();
+}
+
+function fullscreenRandomizeSquads(side = 'all') {
+    if (!isSetupPhase) {
+        showCustomMessage('Fullscreen Setup', 'Reset before randomizing fighters.');
+        return;
+    }
+
+    randomizeSquads(side);
+    syncFullscreenSetupControls();
+    updateFullscreenHud();
+}
+
+function pickEffectiveFlashbangTarget(e) {
+    const enemies = getEnemyCandidatesFor(e);
+    let best = null;
+    let bestScore = 0;
+
+    enemies.forEach(enemy => {
+        const d = getDistance(e, enemy);
+        if (d > 420 || !hasLineOfSight(e, enemy)) return;
+
+        const cluster = enemies.filter(other => getDistance(enemy, other) < 145).length;
+        const closeToAdapto = d < 230 ? 1 : 0;
+        const dangerous = ['scythe', 'samurai', 'rogue', 'laser', 'soldier', 'bow', 'wizard', 'mammoth'].includes(enemy.type) ? 1 : 0;
+        const alliesNear = getAliveAlliesNear(e, enemy.x, enemy.y, 170).length;
+
+        const score = cluster * 70 + closeToAdapto * 45 + dangerous * 35 - alliesNear * 95 - d * 0.08;
+
+        if (score > bestScore) {
+            bestScore = score;
+            best = enemy;
+        }
+    });
+
+    return bestScore >= 45 ? best : null;
+}
+
+function handleAquamarineAI(e) {
+    if (e.type !== 'aquamarine') return false;
+
+    const target = findClosestEnemyFor(e);
+    if (!target) return false;
+
+    e.target = target;
+
+    const d = getDistance(e, target);
+    const angle = Math.atan2(target.y - e.y, target.x - e.x);
+    const kiteAngle = d < 180 ? angle + Math.PI : (d > 360 ? angle : angle + Math.PI / 2);
+
+    e.angle = angle;
+    e.vx += Math.cos(kiteAngle) * 0.36;
+    e.vy += Math.sin(kiteAngle) * 0.36;
+
+    return true;
+}
+
+function spawnAquamarineFish(e, target) {
+    if (!target) return;
+
+    const angle = Math.atan2(target.y - e.y, target.x - e.x);
+
+    projectiles.push({
+        x: e.x + Math.cos(angle) * (e.radius + 8),
+        y: e.y + Math.sin(angle) * (e.radius + 8),
+        vx: Math.cos(angle) * 7,
+        vy: Math.sin(angle) * 7,
+        team: e.team,
+        life: 210,
+        type: 'fish',
+        targetId: target.id,
+        shooterId: e.id,
+        radius: 7,
+        biteTimer: 0
+    });
+
+    spawnParticles(e.x, e.y, '#00cec9', 6);
+    if (typeof playSound === 'function') playSound('zap', 0.35);
+}
+
+function sprayAquamarineWater(e, target) {
+    if (!target) return;
+
+    const angle = Math.atan2(target.y - e.y, target.x - e.x);
+    e.angle = angle;
+
+    projectiles.push({
+        x: e.x + Math.cos(angle) * (e.radius + 12),
+        y: e.y + Math.sin(angle) * (e.radius + 12),
+        vx: Math.cos(angle) * 16,
+        vy: Math.sin(angle) * 16,
+        team: e.team,
+        life: 22,
+        type: 'water',
+        shooterId: e.id,
+        radius: 8
+    });
+
+    spawnParticles(e.x + Math.cos(angle) * 18, e.y + Math.sin(angle) * 18, '#81ecec', 2);
+}
+
+function updateAquamarine(e) {
+    if (e.type !== 'aquamarine' || e.isDancing) return;
+
+    if (e.fishCooldown > 0) e.fishCooldown--;
+    if (e.waterCooldown > 0) e.waterCooldown--;
+
+    const target = e.target && e.target.hp > 0 ? e.target : findClosestEnemyFor(e);
+    if (!target) return;
+
+    const d = getDistance(e, target);
+
+    if (e.fishCooldown <= 0 && d < 520 && hasLineOfSight(e, target)) {
+        spawnAquamarineFish(e, target);
+        e.fishCooldown = 90;
+    }
+
+    if (e.waterCooldown <= 0 && d < 285 && hasLineOfSight(e, target)) {
+        sprayAquamarineWater(e, target);
+        e.waterCooldown = 8;
+    }
+}
+
+function handleMammothMountAI(e) {
+    if (e.type !== 'mammoth_mount') return false;
+
+    const owner = entities.find(ent => ent.id === e.ownerId && ent.hp > 0);
+    if (!owner) {
+        e.hp = 0;
+        spawnParticles(e.x, e.y, '#8d6e63', 12);
+        return true;
+    }
+
+    const target = owner.target && owner.target.hp > 0 ? owner.target : findClosestEnemyFor(owner);
+    e.target = target || null;
+
+    if (target) {
+        const angle = Math.atan2(target.y - e.y, target.x - e.x);
+        e.angle = angle;
+        e.vx += Math.cos(angle) * 0.42;
+        e.vy += Math.sin(angle) * 0.42;
+    } else {
+        const d = getDistance(e, owner);
+        if (d > 35) {
+            const angle = Math.atan2(owner.y - e.y, owner.x - e.x);
+            e.vx += Math.cos(angle) * 0.25;
+            e.vy += Math.sin(angle) * 0.25;
+        }
+    }
+
+    return true;
+}
+
+function ensureMammothMount(rider) {
+    if (rider.type !== 'mammoth') return null;
+
+    let mount = rider.mammothId ? entities.find(ent => ent.id === rider.mammothId && ent.hp > 0) : null;
+
+    if (!mount && !isSetupPhase) {
+        mount = createFighter('mammoth_mount', rider.x, rider.y + 12, rider.team, false, rider.id, null, rider.spawnSide, rider.spawnIndex);
+        mount.ownerId = rider.id;
+        mount.color = '#6d4c41';
+        mount.originalType = 'mammoth_mount';
+        mount.realType = 'mammoth_mount';
+        entities.push(mount);
+        rider.mammothId = mount.id;
+        spawnParticles(rider.x, rider.y, '#8d6e63', 20);
+        spawnDamageText(rider.x, rider.y - 34, 'MAMMOTH!', '#8d6e63', true);
+    }
+
+    return mount || null;
+}
+
+function handleMammothRiderAI(e) {
+    if (e.type !== 'mammoth') return false;
+
+    const target = findClosestEnemyFor(e);
+    if (target) {
+        e.target = target;
+        e.angle = Math.atan2(target.y - e.y, target.x - e.x);
+    }
+
+    const mount = ensureMammothMount(e);
+    if (mount && mount.hp > 0) {
+        // The rider sits on top. The mount does the heavy movement/collision.
+        e.x = mount.x;
+        e.y = mount.y - 18;
+        e.vx = mount.vx * 0.65;
+        e.vy = mount.vy * 0.65;
+        e.angle = mount.angle;
+    }
+
+    return false;
+}
+
+function updateMammothRider(e) {
+    if (e.type !== 'mammoth') return;
+
+    const mount = ensureMammothMount(e);
+    if (!mount || mount.hp <= 0) return;
+
+    if (e.mammothStompCooldown > 0) e.mammothStompCooldown--;
+
+    const enemies = getEnemyCandidatesFor(e);
+    enemies.forEach(enemy => {
+        const d = getDistance(mount, enemy);
+        if (d < mount.radius + enemy.radius + 18) {
+            const angle = Math.atan2(enemy.y - mount.y, enemy.x - mount.x);
+
+            if (e.mammothStompCooldown <= 0) {
+                damageEntity(enemy, 7.5, enemy.x, enemy.y, e);
+                enemy.vx += Math.cos(angle) * 8;
+                enemy.vy += Math.sin(angle) * 8;
+                spawnParticles(enemy.x, enemy.y, '#8d6e63', 12);
+                spawnDamageText(enemy.x, enemy.y - 32, 'TRAMPLE', '#8d6e63', true);
+                e.mammothStompCooldown = 24;
+            } else {
+                enemy.vx += Math.cos(angle) * 0.8;
+                enemy.vy += Math.sin(angle) * 0.8;
+            }
+        }
+    });
+}
+
+function handleBardPrecastAI(e) {
+    if (e.type !== 'bard') return false;
+
+    const target = findClosestEnemyFor(e);
+    if (!target) return false;
+
+    e.target = target;
+
+    const d = getDistance(e, target);
+    const needsSong = !target.isParanoid && !target.isDancing;
+    const canSong = e.bardParanoiaCooldown <= 0 || e.bardDanceCooldown <= 0;
+
+    if (needsSong && canSong) {
+        const angle = Math.atan2(target.y - e.y, target.x - e.x);
+        e.angle = angle;
+
+        // Close enough to sing, far enough to not blindly bonk first.
+        if (d > 190) {
+            e.vx += Math.cos(angle) * 0.35;
+            e.vy += Math.sin(angle) * 0.35;
+        } else if (d < 95) {
+            e.vx -= Math.cos(angle) * 0.55;
+            e.vy -= Math.sin(angle) * 0.55;
+        } else {
+            e.vx += Math.cos(angle + Math.PI / 2) * 0.22;
+            e.vy += Math.sin(angle + Math.PI / 2) * 0.22;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+function handleEliteTrapperAI(e) {
+    if (e.type !== 'trapper') return false;
+
+    if (e.trapCooldown > 0) e.trapCooldown--;
+    if (e.mineCooldown > 0) e.mineCooldown--;
+    if (e.wallCooldown > 0) e.wallCooldown--;
+
+    const enemies = getEnemyCandidatesFor(e);
+    if (enemies.length === 0) return true;
+
+    const edgePad = 68;
+    let centerPullX = 0;
+    let centerPullY = 0;
+
+    if (e.x < edgePad) centerPullX += 1;
+    if (e.x > canvas.width - edgePad) centerPullX -= 1;
+    if (e.y < edgePad) centerPullY += 1;
+    if (e.y > canvas.height - edgePad) centerPullY -= 1;
+
+    if (centerPullX || centerPullY) {
+        const ang = Math.atan2(centerPullY, centerPullX);
+        e.vx += Math.cos(ang) * 1.05;
+        e.vy += Math.sin(ang) * 1.05;
+    }
+
+    let nearest = null;
+    let nearestD = Infinity;
+
+    enemies.forEach(enemy => {
+        const d = getDistance(e, enemy);
+        if (d < nearestD) {
+            nearestD = d;
+            nearest = enemy;
+        }
+    });
+
+    const trapped = enemies
+        .filter(enemy => enemy.trappedBy === e.id || enemy.frozen > 0)
+        .sort((a, b) => getDistance(e, a) - getDistance(e, b))[0];
+
+    const target = trapped && nearestD > 115 ? trapped : nearest;
+    e.target = target;
+
+    const angleToEnemy = Math.atan2(nearest.y - e.y, nearest.x - e.x);
+    e.angle = Math.atan2(target.y - e.y, target.x - e.x);
+
+    // Never put himself in a corner: choose lateral movement away from the nearest enemy.
+    const flankDir = ((Math.floor(frameCount / 50) + Math.floor(e.id * 1000)) % 2 === 0) ? 1 : -1;
+    const escapeAngle = angleToEnemy + Math.PI + flankDir * 0.55;
+
+    const predictedX = nearest.x + (nearest.vx || 0) * 18;
+    const predictedY = nearest.y + (nearest.vy || 0) * 18;
+
+    if (nearestD < 260 && e.trapCooldown <= 0) {
+        const trapX = e.x + Math.cos(angleToEnemy) * 55;
+        const trapY = e.y + Math.sin(angleToEnemy) * 55;
+        const spot = dropTrapForTrapper(e, trapX, trapY, angleToEnemy);
+
+        if (spot) {
+            e.trapCooldown = nearestD < 130 ? 42 : 65;
+            spawnDamageText(e.x, e.y - 24, 'TRAP ROUTE', '#00cec9');
+            spawnParticles(spot.x, spot.y, '#00cec9', 5);
+        }
+    }
+
+    if (nearestD < 190 && e.mineCooldown <= 0) {
+        const mineX = e.x + Math.cos(escapeAngle) * 42;
+        const mineY = e.y + Math.sin(escapeAngle) * 42;
+        const spot = dropMineForTrapper(e, mineX, mineY, escapeAngle);
+
+        if (spot) {
+            e.mineCooldown = 95;
+            spawnParticles(spot.x, spot.y, '#ff7675', 5);
+        }
+    }
+
+    if (trapped && nearestD > 120) {
+        // Finish trapped prey, but only when not being rushed.
+        const approach = Math.atan2(trapped.y - e.y, trapped.x - e.x);
+        e.vx += Math.cos(approach) * 0.55;
+        e.vy += Math.sin(approach) * 0.55;
+        e.angle = approach;
+    } else {
+        // Kite, flank, and bait enemies through trap lines.
+        e.vx += Math.cos(escapeAngle) * (nearestD < 145 ? 0.95 : 0.45);
+        e.vy += Math.sin(escapeAngle) * (nearestD < 145 ? 0.95 : 0.45);
+    }
+
+    return true;
+}
+
+function updateEliteSupportFighters(e) {
+    updateAquamarine(e);
+    updateMammothRider(e);
+}
+
+function killOwnedMammothMount(ownerId) {
+    entities.forEach(ent => {
+        if (ent.type === 'mammoth_mount' && ent.ownerId === ownerId) {
+            ent.hp = 0;
+            spawnParticles(ent.x, ent.y, '#8d6e63', 18);
+            spawnDamageText(ent.x, ent.y - 30, 'WITHERED', '#8d6e63', true);
+        }
+    });
+}
+
         function update() {
 
     if (typeof updateFullscreenHud === 'function' && isWatchFullscreenActive && isWatchFullscreenActive() && frameCount % 15 === 0) {
@@ -5102,44 +5723,64 @@ return false; // Remove it
                 if (e.type === 'bard') {
                     if (e.bardParanoiaCooldown > 0) e.bardParanoiaCooldown--;
                     if (e.bardDanceCooldown > 0) e.bardDanceCooldown--;
-                    
+
                     let targets = entities.filter(ent => ent.team !== e.team && !ent.isStealthed && ent.hp > 0);
-                    
-                    // Ability 1: Paranoia (3s duration, 5s cycle)
-                    if (e.bardParanoiaCooldown <= 0) {
-                        let hitCount = 0;
-                        targets.forEach(t => {
-                            if (Math.sqrt((t.x - e.x)**2 + (t.y - e.y)**2) < 250) {
-                                t.paranoiaTimer = 180; // 3s
-                                t.isParanoid = true;
-                                t.isDancing = false; // Overwrite dance
-                                spawnParticles(t.x, t.y, 'red', 5, 'dot');
-                                hitCount++;
-                            }
-                        });
-                        if (hitCount > 0) {
-                            playSound('note');
-                            spawnParticles(e.x, e.y, 'red', 8, 'note');
-                            e.bardParanoiaCooldown = 300; // 5s total cycle
+                    let usefulTargets = targets.filter(t => !t.isParanoid && !t.isDancing);
+
+                    // BARD SMART PRECAST: disable first, bonk second.
+                    if (usefulTargets.length > 0) {
+                        let closest = usefulTargets
+                            .map(t => ({ t, d: Math.sqrt((t.x - e.x)**2 + (t.y - e.y)**2) }))
+                            .sort((a, b) => a.d - b.d)[0];
+
+                        if (closest) {
+                            e.target = closest.t;
                         }
                     }
 
-                    // Ability 2: Dance (2s duration, 5s cycle)
+                    // Dance is defensive: use it first when enemies are close.
                     if (e.bardDanceCooldown <= 0) {
                         let hitCount = 0;
-                        targets.forEach(t => {
-                            if (Math.sqrt((t.x - e.x)**2 + (t.y - e.y)**2) < 200) {
-                                t.danceTimer = 120; // 2s
+                        usefulTargets.forEach(t => {
+                            const d = Math.sqrt((t.x - e.x)**2 + (t.y - e.y)**2);
+                            if (d < 205 && hasLineOfSight(e, t)) {
+                                t.danceTimer = 130;
                                 t.isDancing = true;
-                                t.isParanoid = false; // Overwrite paranoia
+                                t.isParanoid = false;
+                                t.paranoiaTimer = 0;
                                 spawnParticles(t.x, t.y, 'magenta', 5, 'note');
                                 hitCount++;
                             }
                         });
                         if (hitCount > 0) {
                             playSound('note');
-                            spawnParticles(e.x, e.y, 'magenta', 8, 'note');
-                            e.bardDanceCooldown = 300; // 5s total cycle
+                            spawnParticles(e.x, e.y, 'magenta', 10, 'note');
+                            spawnDamageText(e.x, e.y - 26, "DANCE FIRST", "magenta", true);
+                            e.bardDanceCooldown = 270;
+                        }
+                    }
+
+                    // Paranoia is for groups / backline disruption.
+                    if (e.bardParanoiaCooldown <= 0) {
+                        let hitCount = 0;
+                        usefulTargets.forEach(t => {
+                            const nearby = targets.filter(other => other !== t && Math.sqrt((other.x - t.x)**2 + (other.y - t.y)**2) < 145).length;
+                            const d = Math.sqrt((t.x - e.x)**2 + (t.y - e.y)**2);
+
+                            if (d < 255 && hasLineOfSight(e, t) && (nearby > 0 || d < 160)) {
+                                t.paranoiaTimer = 190;
+                                t.isParanoid = true;
+                                t.isDancing = false;
+                                t.danceTimer = 0;
+                                spawnParticles(t.x, t.y, 'red', 5, 'dot');
+                                hitCount++;
+                            }
+                        });
+                        if (hitCount > 0) {
+                            playSound('note');
+                            spawnParticles(e.x, e.y, 'red', 10, 'note');
+                            spawnDamageText(e.x, e.y - 42, "PARANOIA", "red", true);
+                            e.bardParanoiaCooldown = 300;
                         }
                     }
                 }
@@ -5170,33 +5811,19 @@ if (e.type === 'adapto') {
 
     let shouldThrow = false;
     
-    // Condition A: Beginning of match (Always throw to start)
-    if (e.adaptTimer < 60) shouldThrow = true; 
-    
-    // Condition B: Crowd Control (If cooldown is ready & 2+ enemies are close)
-    else if (e.flashbangCooldown <= 0) {
-        let enemies = entities.filter(ent => ent.team !== e.team && ent.hp > 0);
-        for (let en of enemies) {
-            // Count how many friends this enemy has nearby
-            let nearbyPals = enemies.filter(buddy => 
-                buddy !== en && Math.sqrt((buddy.x - en.x)**2 + (buddy.y - en.y)**2) < 150
-            ).length;
-            
-            if (nearbyPals >= 1) { // Found a crowd (2+ people)
-                e.target = en; // Target the leader of the crowd
-                shouldThrow = true;
-                break; // Stop looking, we found a target
-            }
-        }
+    // Effective flashbang logic. No more wasteful opening throw.
+    const flashTarget = e.flashbangCooldown <= 0 ? pickEffectiveFlashbangTarget(e) : null;
+    if (flashTarget) {
+        e.target = flashTarget;
+        shouldThrow = true;
     }
 
-    // EXECUTE THROW
+    // EXECUTE THROW only when it is likely to hit/disable something useful.
     if (shouldThrow && e.flashbangCooldown <= 0 && e.target) {
-         let dist = Math.sqrt((e.target.x - e.x)**2 + (e.target.y - e.y)**2);
-         if (dist < 350 && hasLineOfSight(e, e.target)) {
-             shootFlashbang(e);
-             e.flashbangCooldown = 180; // 3 Seconds Cooldown
-             e.currentMode = 'assess'; // Switch to mobile mode after throwing
+         if (shootFlashbang(e)) {
+             e.flashbangCooldown = 210;
+             e.currentMode = 'assess';
+             e.hasOpenedWithFlash = true;
          }
     }
     // -----------------------------------------------------
@@ -5206,7 +5833,9 @@ if (e.type === 'adapto') {
         e.barrelCooldown <= 0 &&
         !e.isDancing &&
         e.hp > 0 &&
-        e.target
+        e.target &&
+        e.adaptTimer > 120 &&
+        e.hasOpenedWithFlash
     ) {
         const barrelTarget = findBestAdaptoBarrelTarget(e);
 
@@ -6036,13 +6665,19 @@ if (closeLaserThreat && e.blockCooldown <= 0 && e.state !== 'firing') {
                     if (e.timer === 1) {
                         let rand = Math.random();
 
-                        if (rand < 0.7) e.laserMode = 'short';
-                        else if (rand < 0.9) e.laserMode = 'medium';
+                        const nearbyThreats = entities.filter(ent =>
+                            isValidEnemyTarget(e, ent) &&
+                            Math.sqrt((ent.x - e.x) ** 2 + (ent.y - e.y) ** 2) < 360
+                        ).length;
+
+                        if (nearbyThreats >= 3 && rand < 0.34) e.laserMode = 'death';
+                        else if (rand < 0.62) e.laserMode = 'short';
+                        else if (rand < 0.90) e.laserMode = 'medium';
                         else e.laserMode = 'death';
 
                         if (e.laserMode === 'short') { e.chargeTime = 30; e.fireTime = 20; }
-                        if (e.laserMode === 'medium') { e.chargeTime = 120; e.fireTime = 40; }
-                        if (e.laserMode === 'death') { e.chargeTime = 240; e.fireTime = 60; }
+                        if (e.laserMode === 'medium') { e.chargeTime = 105; e.fireTime = 46; }
+                        if (e.laserMode === 'death') { e.chargeTime = 155; e.fireTime = 82; }
 
                         e.laserChargeSoundPlayed = false;
                         e.laserFireSoundPlayed = false;
@@ -6133,6 +6768,29 @@ if (closeLaserThreat && e.blockCooldown <= 0 && e.state !== 'firing') {
         });
         // ----------------------------------------
                 
+
+                if (p.type === 'fish') {
+                    let target = p.targetId ? entities.find(en => en.id === p.targetId && en.hp > 0) : null;
+
+                    if (!target) {
+                        const enemies = entities.filter(en => en.team !== p.team && en.hp > 0 && en.type !== 'turret' && en.type !== 'boid');
+                        let best = null;
+                        let bestDist = Infinity;
+                        enemies.forEach(en => {
+                            const d = Math.sqrt((en.x - p.x)**2 + (en.y - p.y)**2);
+                            if (d < bestDist) { bestDist = d; best = en; }
+                        });
+                        target = best;
+                        if (target) p.targetId = target.id;
+                    }
+
+                    if (target) {
+                        const angle = Math.atan2(target.y - p.y, target.x - p.x);
+                        const speed = 8.4;
+                        p.vx = p.vx * 0.75 + Math.cos(angle) * speed * 0.25;
+                        p.vy = p.vy * 0.75 + Math.sin(angle) * speed * 0.25;
+                    }
+                }
 
                 if (p.type === 'orb') {
                     if (!p.target || p.target.hp <= 0) {
@@ -6878,13 +7536,17 @@ if (e.nameIndex) {
                 disperseEngineerTurrets(e.id);
             }
 
+            if (e.type === 'mammoth') {
+                killOwnedMammothMount(e.id);
+            }
+
             // --- NEW: VISUAL DEATH EFFECTS ---
             let killer = entities.find(k => k.id === e.lastAttackerId);
             let isSharpKill = false;
 
             if (killer) {
                 // Define who uses sharp weapons
-                const sharpTypes = ['knight', 'pirate', 'rogue', 'samurai', 'scythe', 'lance', 'bard', 'trapper', 'skeleton', 'adapto', 'fight knight'];
+                const sharpTypes = ['knight', 'pirate', 'rogue', 'samurai', 'scythe', 'lance', 'spearer', 'bard', 'trapper', 'skeleton', 'adapto', 'fight knight'];
                 
                 if (sharpTypes.includes(killer.type)) {
                     isSharpKill = true;
@@ -8107,7 +8769,7 @@ if (!e.target || (e.target.id !== e.rageTargetId)) {
 
            // --- RANGED TACTICS (SOLDIER/BOW/WIZARD/ORBITER/LASER/ALCHEMIST) ---
             // 1. Add 'alchemist' to this list so the AI knows to use ranged logic
-           const isRanged = ['soldier', 'bow', 'wizard', 'orbiter', 'engineer', 'laser', 'alchemist', 'necromancer'].includes(e.type);
+           const isRanged = ['soldier', 'bow', 'wizard', 'orbiter', 'engineer', 'laser', 'alchemist', 'necromancer', 'aquamarine'].includes(e.type);
 
             if (isRanged && e.target) {
                 const isBlocked = !hasLineOfSight(e, e.target);
@@ -9304,7 +9966,7 @@ if (e.fun < 0) e.fun = 0;              // Prevent negative fun
 
         function resolveCollisions() {
             // NEW: List of classes that use melee weapons/attacks and shouldn't take collision damage when attacking
-            const MELEE_WEAPON_USERS = ['knight', 'pirate', 'rogue', 'samurai', 'scythe', 'lance', 'bard', 'trapper', 'spatial', 'devourer', 'grabber', 'vampire', 'boid'];
+            const MELEE_WEAPON_USERS = ['knight', 'pirate', 'rogue', 'samurai', 'scythe', 'lance', 'bard', 'trapper', 'spatial', 'devourer', 'grabber', 'vampire', 'boid', 'mammoth_mount'];
             // Unarmed is deliberately NOT in this list so it deals body damage via momentum dominance
 
             entities.forEach(e => {
@@ -9466,7 +10128,16 @@ if (e.fun < 0) e.fun = 0;              // Prevent negative fun
             for (let i = 0; i < entities.length; i++) {
                 for (let j = i + 1; j < entities.length; j++) {
                     let a = entities[i]; let b = entities[j];
-                    
+
+                    // Mammoth rider sits on top of its own mount. Do not run normal ball collision
+                    // between the rider and mount, or they jitter/push each other forever.
+                    if (
+                        (a.type === 'mammoth_mount' && b.id === a.ownerId) ||
+                        (b.type === 'mammoth_mount' && a.id === b.ownerId)
+                    ) {
+                        continue;
+                    }
+
                     if (a.type === 'grabber' && a.team !== b.team && a.heldTargets.length < 2 && a.grabCooldown <= 0) {
                         let d = Math.sqrt((a.x - b.x)**2 + (a.y - b.y)**2);
                         if (d < a.radius + b.radius + 20 && !b.heldBy) { 
@@ -9801,6 +10472,17 @@ if (e.fun < 0) e.fun = 0;              // Prevent negative fun
                              damageEntity(victim, attacker.isStealthed ? 1.35 : 1.0, tipX, tipY, attacker);
                          }
                     }
+
+                    if (attacker.type === 'trapper') {
+                         let tipX = attacker.x + Math.cos(attacker.angle) * attacker.reach;
+                         let tipY = attacker.y + Math.sin(attacker.angle) * attacker.reach;
+                         if (Math.sqrt((tipX - victim.x)**2 + (tipY - victim.y)**2) < victim.radius + 9) {
+                             const trapBonus = (victim.trappedBy === attacker.id || victim.frozen > 0) ? 1.8 : 1.0;
+                             damageEntity(victim, 2.2 * trapBonus, tipX, tipY, attacker);
+                             victim.vx += Math.cos(attacker.angle) * 1.0;
+                             victim.vy += Math.sin(attacker.angle) * 1.0;
+                         }
+                    }
                     
 
                     // fight knight LOGIC
@@ -9856,13 +10538,19 @@ if (e.fun < 0) e.fun = 0;              // Prevent negative fun
                         }
                     }
 
-                    // BARD LOGIC (Normal Knockback)
+                    // BARD LOGIC: song first, attack second
                     if (attacker.type === 'bard') {
                         let tipX = attacker.x + Math.cos(attacker.angle) * attacker.reach; let tipY = attacker.y + Math.sin(attacker.angle) * attacker.reach;
                         if (Math.sqrt((tipX - victim.x)**2 + (tipY - victim.y)**2) < victim.radius + 5) {
-                            damageEntity(victim, 1.0, tipX, tipY, attacker); 
-                            victim.vx += Math.cos(attacker.angle) * 1.5; 
-                            victim.vy += Math.sin(attacker.angle) * 1.5;
+                            if (victim.isDancing || victim.isParanoid) {
+                                damageEntity(victim, 1.25, tipX, tipY, attacker);
+                                victim.vx += Math.cos(attacker.angle) * 1.5;
+                                victim.vy += Math.sin(attacker.angle) * 1.5;
+                            } else {
+                                victim.danceTimer = Math.max(victim.danceTimer || 0, 60);
+                                victim.isDancing = true;
+                                spawnParticles(victim.x, victim.y, 'magenta', 3, 'note');
+                            }
                         }
                     }
 
@@ -9913,6 +10601,10 @@ obstacles.forEach(o => {
 
     if (d < rad) {
         const shooter = entities.find(ent => ent.id === p.shooterId);
+
+        if (p.type === 'spear' && typeof handleSpearObstacleImpact === 'function') {
+            if (handleSpearObstacleImpact(p, o, shooter)) return;
+        }
 
         // Bullets/cannonballs shatter on rocks, spikes, and barricades.
         if (
@@ -10011,6 +10703,67 @@ if (damageSource && (p.type === 'bullet' || p.type === 'cannonball' || p.type ==
         }
 
         if (p.type === 'hook') return;
+
+        if (p.type === 'water') {
+            damageEntity(e, 5.5, p.x, p.y, damageSource);
+            e.vx += p.vx * 0.55;
+            e.vy += p.vy * 0.55;
+            spawnParticles(p.x, p.y, '#81ecec', 5);
+            p.dead = true;
+            return;
+        }
+
+        if (p.type === 'fish') {
+            // Fish are no longer one-frame bullets.
+            // They either get blocked and swarm, get swatted, or latch on and chew for a few seconds.
+            if (p.latchedTargetId) return;
+
+            if (typeof isFishBlockedByTarget === 'function' && isFishBlockedByTarget(p, e)) {
+                setFishSwarmBlocked(p, e);
+                return;
+            }
+
+            const canDefend =
+                e.hp > 0 &&
+                !e.isDancing &&
+                !e.frozen &&
+                !e.trappedBy;
+
+            const armedDefender = ['samurai', 'scythe', 'knight', 'lance', 'pirate', 'rogue', 'trapper', 'bard', 'fight knight', 'spearer'].includes(e.type);
+            const swatChance = armedDefender ? 0.34 : 0.16;
+
+            if (canDefend && Math.random() < swatChance) {
+                p.dead = true;
+                spawnParticles(p.x, p.y, '#b2bec3', 8);
+                spawnDamageText(p.x, p.y - 18, 'FISH KILLED', '#b2bec3');
+                if (typeof playSound === 'function') playSound('clash', 0.25);
+                return;
+            }
+
+            p.latchedTargetId = e.id;
+            p.latchTimer = 150;
+            p.biteTick = 0;
+            p.radius = 6;
+            p.vx = 0;
+            p.vy = 0;
+            p.life = Math.max(p.life || 0, 160);
+
+            damageEntity(e, 3.0, p.x, p.y, damageSource);
+            spawnParticles(e.x, e.y, '#00cec9', 10);
+            spawnDamageText(e.x, e.y - 24, 'LATCH!', '#00cec9', true);
+            if (typeof playSound === 'function') playSound('hit', 0.35);
+            return;
+        }
+
+        if (p.type === 'spear') {
+            if (typeof handleSpearProjectileHit === 'function') {
+                handleSpearProjectileHit(p, e, damageSource);
+            } else {
+                damageEntity(e, 14, p.x, p.y, damageSource);
+                p.dead = true;
+            }
+            return;
+        }
 
         // Mine explosion logic
         if (p.isMine) {
@@ -10189,20 +10942,33 @@ if (damageSource && (p.type === 'bullet' || p.type === 'cannonball' || p.type ==
     let dmg = 0.5;
     let width = 0.15;
     let knockbackForce = 1.2;
+    let beamColor = e.color || 'red';
 
     if (e.laserMode === 'short') {
-        dmg = 0.2;
-        width = 0.1;
-        knockbackForce = 0.9;
+        dmg = 0.22;
+        width = 0.11;
+        knockbackForce = 1.0;
+    }
+
+    if (e.laserMode === 'medium') {
+        dmg = 0.7;
+        width = 0.18;
+        knockbackForce = 1.65;
     }
 
     if (e.laserMode === 'death') {
-        dmg = 2.0;
-        width = 0.3;
-        knockbackForce = 2.4;
+        dmg = 3.6;
+        width = 0.42;
+        knockbackForce = 4.6;
+        beamColor = '#ff1744';
+
+        if (e.timer % 10 === 0) {
+            registerBigMoment(e.x + Math.cos(e.angle) * 170, e.y + Math.sin(e.angle) * 170, 'DEATH LASER', 'boom');
+            triggerSlowMoBigHit(18);
+        }
     }
 
-    e.laserColor = e.color;
+    e.laserColor = beamColor;
     e.laserWidth = width;
 
     let enemies = entities.filter(ent =>
@@ -10211,7 +10977,6 @@ if (damageSource && (p.type === 'bullet' || p.type === 'cannonball' || p.type ==
     );
 
     if (enemies.length === 0) {
-        // Still draw the beam while tracking. No damage through walls.
         return;
     }
 
@@ -10223,21 +10988,30 @@ if (damageSource && (p.type === 'bullet' || p.type === 'cannonball' || p.type ==
 
         if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
 
+        const victimDist = Math.sqrt(dx * dx + dy * dy);
+        const distanceFalloff = e.laserMode === 'death' ? clamp(1.15 - victimDist / 1200, 0.55, 1.0) : 1;
+
         if (angleDiff < width) {
             if (e.timer % 20 === 0) {
-                registerBigMoment(victim.x, victim.y, 'LASER HIT');
-                triggerSlowMoBigHit(20);
+                registerBigMoment(victim.x, victim.y, e.laserMode === 'death' ? 'DEATH LASER HIT' : 'LASER HIT', e.laserMode === 'death' ? 'boom' : 'hit');
+                triggerSlowMoBigHit(e.laserMode === 'death' ? 25 : 14);
             }
 
-            recordDamageForRecap(e, victim, dmg);
+            const finalDmg = dmg * distanceFalloff;
+            recordDamageForRecap(e, victim, finalDmg);
             victim.lastAttackerId = e.id;
-            victim.hp -= dmg;
+            victim.hp -= finalDmg;
 
-            victim.vx += Math.cos(angleToVictim) * knockbackForce;
-            victim.vy += Math.sin(angleToVictim) * knockbackForce;
+            victim.vx += Math.cos(angleToVictim) * knockbackForce * distanceFalloff;
+            victim.vy += Math.sin(angleToVictim) * knockbackForce * distanceFalloff;
 
-            if (e.timer % 5 === 0) {
-                spawnParticles(victim.x, victim.y, e.color || 'red', 2);
+            if (e.laserMode === 'death') {
+                victim.flashTime = 5;
+                victim.frozen = Math.max(victim.frozen || 0, 5);
+            }
+
+            if (e.timer % 4 === 0) {
+                spawnParticles(victim.x, victim.y, beamColor, e.laserMode === 'death' ? 5 : 2);
                 damageEntity(victim, 0, victim.x, victim.y, e);
             }
         }
@@ -11064,10 +11838,231 @@ else if (e.type === 'trapper') {
     ctx.fillStyle = '#555'; 
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(e.reach,-3); ctx.lineTo(e.reach+5,0); ctx.lineTo(e.reach,3); ctx.lineTo(0,0); ctx.fill(); 
 }
+else if (e.type === 'spearer') {
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Back quiver
+    ctx.strokeStyle = '#5d4037';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-12, -14);
+    ctx.lineTo(12, 16);
+    ctx.stroke();
+
+    // Thrown spear in hand
+    ctx.strokeStyle = '#8d6e63';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(-8, 0);
+    ctx.lineTo(55, 0);
+    ctx.stroke();
+
+    // Metal spear tip
+    ctx.fillStyle = '#dfe6e9';
+    ctx.strokeStyle = '#2d3436';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(55, -7);
+    ctx.lineTo(74, 0);
+    ctx.lineTo(55, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Spear tail feathers
+    ctx.fillStyle = '#ff7675';
+    ctx.beginPath();
+    ctx.moveTo(-10, -7);
+    ctx.lineTo(-24, -12);
+    ctx.lineTo(-17, -1);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#74b9ff';
+    ctx.beginPath();
+    ctx.moveTo(-10, 7);
+    ctx.lineTo(-24, 12);
+    ctx.lineTo(-17, 1);
+    ctx.closePath();
+    ctx.fill();
+
+    // Variant hint glow when ready
+    if ((e.explosiveSpearCooldown || 0) <= 0) {
+        ctx.strokeStyle = 'rgba(255, 118, 117, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius + 7, -0.7, 0.7);
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
 else if (e.type === 'turret') { 
     ctx.fillStyle = '#555'; ctx.fillRect(-15, -15, 30, 30); 
     ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill(); 
     ctx.fillStyle = '#222'; ctx.fillRect(0, -5, 25, 10); 
+}
+else if (e.type === 'aquamarine') {
+    ctx.save();
+    const pulse = Math.sin(frameCount * 0.14) * 2;
+    const spray = e.waterSprayTimer > 0;
+    const fishBurst = e.fishBurstTimer > 0;
+
+    // Water aura shell
+    ctx.strokeStyle = fishBurst ? '#ffffff' : '#00cec9';
+    ctx.lineWidth = fishBurst ? 5 : 4;
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = fishBurst ? 14 : 6;
+    ctx.beginPath();
+    ctx.arc(0, 0, e.radius + 8 + pulse, -0.75, 0.75);
+    ctx.stroke();
+
+    // Wave crest
+    ctx.strokeStyle = '#81ecec';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-e.radius * 0.45, -e.radius * 0.70);
+    ctx.quadraticCurveTo(-4, -e.radius - 13 - pulse, e.radius * 0.52, -e.radius * 0.55);
+    ctx.stroke();
+
+    // Fish familiar symbol beside the body
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#81ecec';
+    ctx.strokeStyle = '#006f7a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(e.radius + 18, 0, 16, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#00cec9';
+    ctx.beginPath();
+    ctx.moveTo(e.radius + 3, 0);
+    ctx.lineTo(e.radius - 8, -7);
+    ctx.lineTo(e.radius - 8, 7);
+    ctx.closePath();
+    ctx.fill();
+
+    // Water cannon / spray nozzle
+    ctx.strokeStyle = '#eaffff';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(e.radius - 2, 4);
+    ctx.lineTo(e.radius + 26, 2);
+    ctx.stroke();
+
+    if (spray) {
+        ctx.strokeStyle = 'rgba(129,236,236,0.85)';
+        ctx.lineWidth = 3;
+        for (let i = -2; i <= 2; i++) {
+            ctx.beginPath();
+            ctx.moveTo(e.radius + 25, 2);
+            ctx.lineTo(e.radius + 62, i * 7);
+            ctx.stroke();
+        }
+    }
+
+    ctx.restore();
+}
+else if (e.type === 'mammoth') {
+    ctx.save();
+
+    // Rider body / saddle marker
+    ctx.fillStyle = '#5d4037';
+    ctx.strokeStyle = '#2d1f1a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, e.radius + 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Fur collar
+    ctx.strokeStyle = '#d7ccc8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, e.radius + 8, Math.PI * 1.08, Math.PI * 1.92);
+    ctx.stroke();
+
+    // Lance from above
+    ctx.strokeStyle = '#f5f5dc';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(2, -2);
+    ctx.lineTo(e.reach + 10, -18);
+    ctx.stroke();
+
+    ctx.fillStyle = '#f5f5dc';
+    ctx.beginPath();
+    ctx.moveTo(e.reach + 13, -19);
+    ctx.lineTo(e.reach + 26, -22);
+    ctx.lineTo(e.reach + 16, -10);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+}
+else if (e.type === 'mammoth_mount') {
+    ctx.save();
+
+    // Large woolly body
+    ctx.fillStyle = '#6d4c41';
+    ctx.strokeStyle = '#2d1f1a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(-4, 0, e.radius + 14, e.radius + 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Wool cap
+    ctx.fillStyle = '#8d6e63';
+    ctx.beginPath();
+    ctx.ellipse(-12, -e.radius * 0.45, e.radius * 0.7, e.radius * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    ctx.fillStyle = '#795548';
+    ctx.strokeStyle = '#2d1f1a';
+    ctx.beginPath();
+    ctx.ellipse(e.radius * 0.78, 0, e.radius * 0.55, e.radius * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Trunk
+    ctx.strokeStyle = '#5d4037';
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(e.radius + 10, 0);
+    ctx.quadraticCurveTo(e.radius + 32, 8, e.radius + 25, 26);
+    ctx.stroke();
+
+    // Tusks
+    ctx.strokeStyle = '#f5f5dc';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(e.radius + 2, -10);
+    ctx.quadraticCurveTo(e.radius + 34, -23, e.radius + 41, -2);
+    ctx.moveTo(e.radius + 2, 10);
+    ctx.quadraticCurveTo(e.radius + 34, 23, e.radius + 41, 2);
+    ctx.stroke();
+
+    // Feet
+    ctx.fillStyle = '#3e2723';
+    for (let fx of [-22, 3, 24]) {
+        ctx.fillRect(fx, e.radius - 2, 9, 8);
+    }
+
+    // Eye
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.arc(e.radius + 7, -9, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
 }
 else if (e.type === 'vampire') { 
     if(e.isBat){ctx.fillStyle='#111';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(-15,-10);ctx.lineTo(-5,0);ctx.fill();ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(15,-10);ctx.lineTo(5,0);ctx.fill();} 
@@ -11367,7 +12362,7 @@ else if (e.type === 'devourer') {
     ctx.restore();
 }
         // --- CHARACTER NAME / NUMBER LABEL ---
-if (characterNamesEnabled && e.type !== 'turret' && e.type !== 'boid' && !e.parentId) {
+if ((characterNamesEnabled || fighterNumbersEnabled) && e.type !== 'turret' && e.type !== 'boid' && !e.parentId) {
     const label = getFighterLabel(e);
 
     if (label) {
@@ -11763,6 +12758,87 @@ ctx.beginPath();
     ctx.stroke();
     return;
 }
+
+        if (p.type === 'spear') {
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(Math.atan2(p.vy || 0, p.vx || 0));
+
+            const kind = p.spearKind || 'normal';
+            ctx.strokeStyle = kind === 'explosive' ? '#e17055' : (kind === 'bounce' ? '#74b9ff' : '#8d6e63');
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(-18, 0);
+            ctx.lineTo(18, 0);
+            ctx.stroke();
+
+            ctx.fillStyle = kind === 'explosive' ? '#ff7675' : '#dfe6e9';
+            ctx.strokeStyle = '#2d3436';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(18, -6);
+            ctx.lineTo(34, 0);
+            ctx.lineTo(18, 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            if (kind === 'explosive') {
+                ctx.fillStyle = '#fdcb6e';
+                ctx.beginPath();
+                ctx.arc(-10, 0, 5 + Math.sin(frameCount * 0.4) * 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (kind === 'bounce') {
+                ctx.strokeStyle = '#00cec9';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, 12, -0.6, 0.6);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+            return;
+        }
+
+        if (p.type === 'fish') {
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(Math.atan2(p.vy, p.vx));
+            ctx.fillStyle = '#00cec9';
+            ctx.strokeStyle = '#006f7a';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 10, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#81ecec';
+            ctx.beginPath();
+            ctx.moveTo(-9, 0);
+            ctx.lineTo(-17, -6);
+            ctx.lineTo(-17, 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            return;
+        }
+
+        if (p.type === 'water') {
+            ctx.save();
+            ctx.globalAlpha = 0.82;
+            ctx.fillStyle = '#81ecec';
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#00cec9';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+            return;
+        }
+
         ctx.arc(p.x, p.y, r, 0, Math.PI*2); 
         ctx.fillStyle = col; 
         ctx.fill();
@@ -12212,18 +13288,22 @@ function applyEditor() {
     closeEditor();
 }
 function showRow(rowNum) {
-    document.querySelectorAll('.control-row').forEach(row => row.style.display = 'none');
+    document.querySelectorAll('.control-row').forEach(row => {
+        row.style.display = 'none';
+        row.classList.remove('active-control-row');
+    });
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active-tab'));
 
     const targetRow = document.getElementById('row-' + rowNum);
     if (targetRow) {
         targetRow.style.display = 'flex';
+        targetRow.classList.add('active-control-row');
     }
-    document.getElementById('btn-tab-' + rowNum).classList.add('active-tab');
 
-    // CRITICAL: If opening the squad row, refresh the UI so inputs are recognized
-    if (rowNum === 3) {
-    }
+    const tabBtn = document.getElementById('btn-tab-' + rowNum);
+    if (tabBtn) tabBtn.classList.add('active-tab');
+
+    if (typeof updateFullscreenHud === 'function') updateFullscreenHud();
 }
 function spawnCorpseParts(victim, slashAngle) {
     // Helper to create a drifting body part
@@ -12301,56 +13381,7620 @@ projectiles.push({
     }
 }
 function shootFlashbang(e) {
-    // 1. Pick a spot near the opponent (Ground targeting)
-    // We aim slightly in front of them based on their movement
-    let dist = Math.sqrt((e.target.x - e.x)**2 + (e.target.y - e.y)**2);
+    const target = e.target || pickEffectiveFlashbangTarget(e);
+    if (!target) return false;
+
+    const dist = Math.sqrt((target.x - e.x)**2 + (target.y - e.y)**2);
+    if (dist > 430 || !hasLineOfSight(e, target)) return false;
+
     const speed = 12;
-    
-    // Calculate time to travel so we can fuse the grenade
-    let travelTime = dist / speed;
-    
-    // Predict where they will be
-    let predX = e.target.x + (e.target.vx * travelTime);
-    let predY = e.target.y + (e.target.vy * travelTime);
-    let angle = Math.atan2(predY - e.y, predX - e.x);
+    const travelTime = Math.max(12, dist / speed);
+    const predX = target.x + (target.vx || 0) * travelTime;
+    const predY = target.y + (target.vy || 0) * travelTime;
+    const angle = Math.atan2(predY - e.y, predX - e.x);
 
     projectiles.push({
-        x: e.x, y: e.y,
+        x: e.x + Math.cos(angle) * (e.radius + 8),
+        y: e.y + Math.sin(angle) * (e.radius + 8),
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        team: e.team, 
-        life: travelTime, // <--- FUSE: Explodes exactly when it reaches the area
-        type: 'flashbang', 
-        shooterId: e.id 
+        team: e.team,
+        life: travelTime,
+        type: 'flashbang',
+        shooterId: e.id,
+        targetX: predX,
+        targetY: predY
     });
-    playSound('shot');
+
+    playSound('shot', 0.65);
+    return true;
 }
 
 function explodeFlashbang(p) {
-    playSound('explosion');
-    spawnParticles(p.x, p.y, 'white', 50); 
-    
-    // Find enemies in Blast Radius
-    let enemies = entities.filter(ent => ent.team !== p.team);
-    enemies.forEach(en => {
-        let d = Math.sqrt((en.x - p.x)**2 + (en.y - p.y)**2);
-        
-        // Radius check (150px circle)
-        if (d < 150) { 
-            // 1. STUN for 3 Seconds
-            en.frozen = 150; 
-            
-            // 2. SLOW Effect (Kill current momentum)
-            en.vx *= 0.1;
-            en.vy *= 0.1;
+    playSound('explosion_small', 0.55);
+    spawnParticles(p.x, p.y, 'white', 50);
 
-            // 3. Disorient
-            en.angle += Math.PI + (Math.random() - 0.5); 
+    let effectiveHits = 0;
 
-            // 4. Visuals
-            spawnDamageText(en.x, en.y - 30, "STUNNED (3s)!", "#ffffff", true);
+    entities.forEach(en => {
+        if (en.team === p.team || en.hp <= 0) return;
+
+        const d = Math.sqrt((en.x - p.x)**2 + (en.y - p.y)**2);
+
+        if (d < 155) {
+            const power = 1 - d / 155;
+            en.frozen = Math.max(en.frozen || 0, Math.round(90 + 80 * power));
+            en.vx *= 0.08;
+            en.vy *= 0.08;
+            en.angle += Math.PI + (Math.random() - 0.5);
+            en.flashTime = 8;
+            en.lastAttackerId = p.shooterId;
+            effectiveHits++;
+
+            spawnDamageText(en.x, en.y - 30, "FLASHED!", "#ffffff", true);
             spawnParticles(en.x, en.y, '#fff', 5);
         }
     });
+
+    if (effectiveHits === 0) {
+        spawnDamageText(p.x, p.y - 20, "MISS", "#b2bec3");
+    }
+
     p.dead = true;
 }
+
+
+/* --- STABLE PATCH: compact UI support + working Aquamarine/Mammoth ---
+   This patch intentionally wraps the existing AI instead of rewriting the whole game loop.
+   It fixes the new fighters even if older logic above did not call their handlers. */
+
+function safeHasLineOfSight(a, b) {
+    try {
+        return typeof hasLineOfSight === 'function' ? hasLineOfSight(a, b) : true;
+    } catch (err) {
+        return true;
+    }
+}
+
+function getVisibleEnemyCandidatesFor(unit) {
+    return entities.filter(ent =>
+        ent &&
+        ent.hp > 0 &&
+        ent.id !== unit.id &&
+        ent.team !== unit.team &&
+        ent.type !== 'turret' &&
+        ent.type !== 'boid' &&
+        ent.type !== 'mammoth_mount' &&
+        !ent.isStealthed &&
+        !ent.isFeigning
+    );
+}
+
+function findBestAquamarineTarget(e) {
+    const enemies = getVisibleEnemyCandidatesFor(e);
+    let best = null;
+    let bestScore = -Infinity;
+
+    enemies.forEach(enemy => {
+        const d = getDistance(e, enemy);
+        const los = safeHasLineOfSight(e, enemy) ? 1 : 0;
+        const cluster = enemies.filter(other => other !== enemy && getDistance(enemy, other) < 130).length;
+        const injuredBonus = enemy.hp < enemy.maxHp * 0.45 ? 70 : 0;
+        const score = los * 120 + cluster * 40 + injuredBonus - d * 0.22;
+
+        if (score > bestScore) {
+            bestScore = score;
+            best = enemy;
+        }
+    });
+
+    return best;
+}
+
+function spawnAquamarineFish(e, target) {
+    if (!e || !target) return false;
+
+    const baseAngle = Math.atan2(target.y - e.y, target.x - e.x);
+    const count = 3;
+
+    for (let i = 0; i < count; i++) {
+        const spread = (i - 1) * 0.24;
+        const angle = baseAngle + spread;
+        const side = (i - 1) * 9;
+
+        projectiles.push({
+            x: e.x + Math.cos(angle) * (e.radius + 10) - Math.sin(baseAngle) * side,
+            y: e.y + Math.sin(angle) * (e.radius + 10) + Math.cos(baseAngle) * side,
+            vx: Math.cos(angle) * 7.5,
+            vy: Math.sin(angle) * 7.5,
+            team: e.team,
+            life: 240,
+            type: 'fish',
+            targetId: target.id,
+            shooterId: e.id,
+            radius: 8,
+            biteTimer: 0,
+            turnRate: 0.14 + Math.random() * 0.04
+        });
+    }
+
+    e.fishBurstTimer = 18;
+    spawnParticles(e.x, e.y, '#00cec9', 10);
+    spawnDamageText(e.x, e.y - 32, 'FISH SWARM', '#00cec9', true);
+    if (typeof playSound === 'function') playSound('zap', 0.35);
+    return true;
+}
+
+function sprayAquamarineWater(e, target) {
+    if (!e || !target) return false;
+
+    const baseAngle = Math.atan2(target.y - e.y, target.x - e.x);
+    e.angle = baseAngle;
+    e.waterSprayTimer = 12;
+
+    for (let i = -2; i <= 2; i++) {
+        const angle = baseAngle + i * 0.08 + (Math.random() - 0.5) * 0.04;
+        const speed = 15.5 + Math.random() * 2.8;
+
+        projectiles.push({
+            x: e.x + Math.cos(angle) * (e.radius + 15),
+            y: e.y + Math.sin(angle) * (e.radius + 15),
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            team: e.team,
+            life: 26,
+            type: 'water',
+            shooterId: e.id,
+            radius: 9 + Math.random() * 3,
+            pushPower: 0.75
+        });
+    }
+
+    spawnParticles(
+        e.x + Math.cos(baseAngle) * 20,
+        e.y + Math.sin(baseAngle) * 20,
+        '#81ecec',
+        6
+    );
+    return true;
+}
+
+function updateAquamarine(e) {
+    if (!e || e.type !== 'aquamarine' || e.hp <= 0 || e.isDancing) return;
+
+    if (e.fishCooldown === undefined) e.fishCooldown = 30;
+    if (e.waterCooldown === undefined) e.waterCooldown = 10;
+    if (e.fishBurstTimer === undefined) e.fishBurstTimer = 0;
+    if (e.waterSprayTimer === undefined) e.waterSprayTimer = 0;
+
+    if (e.fishCooldown > 0) e.fishCooldown--;
+    if (e.waterCooldown > 0) e.waterCooldown--;
+    if (e.fishBurstTimer > 0) e.fishBurstTimer--;
+    if (e.waterSprayTimer > 0) e.waterSprayTimer--;
+
+    const target = (e.target && e.target.hp > 0) ? e.target : findBestAquamarineTarget(e);
+    if (!target) return;
+
+    e.target = target;
+
+    const d = getDistance(e, target);
+
+    if (e.fishCooldown <= 0 && d < 620) {
+        spawnAquamarineFish(e, target);
+        e.fishCooldown = 105;
+    }
+
+    if (e.waterCooldown <= 0 && d < 330 && safeHasLineOfSight(e, target)) {
+        sprayAquamarineWater(e, target);
+        e.waterCooldown = 10;
+    }
+}
+
+function handleAquamarineAI(e) {
+    if (!e || e.type !== 'aquamarine') return false;
+
+    const target = findBestAquamarineTarget(e);
+    if (!target) return true;
+
+    e.target = target;
+    const d = getDistance(e, target);
+    const angle = Math.atan2(target.y - e.y, target.x - e.x);
+
+    e.angle = angle;
+
+    // Aquamarine fights like a ranged controller: keeps distance, strafes, and sprays.
+    let moveAngle;
+    if (d < 170) {
+        moveAngle = angle + Math.PI;
+    } else if (d > 390) {
+        moveAngle = angle;
+    } else {
+        const side = ((Math.floor(frameCount / 55) + Math.floor(e.id * 1000)) % 2 === 0) ? 1 : -1;
+        moveAngle = angle + Math.PI / 2 * side;
+    }
+
+    e.vx += Math.cos(moveAngle) * 0.42;
+    e.vy += Math.sin(moveAngle) * 0.42;
+
+    // Avoid edges so fish/water have room to work.
+    const edge = 58;
+    if (e.x < edge) e.vx += 0.7;
+    if (e.x > canvas.width - edge) e.vx -= 0.7;
+    if (e.y < edge) e.vy += 0.7;
+    if (e.y > canvas.height - edge) e.vy -= 0.7;
+
+    updateAquamarine(e);
+    return true;
+}
+
+function handleMammothMountAI(e) {
+    if (!e || e.type !== 'mammoth_mount') return false;
+
+    const owner = entities.find(ent => ent.id === e.ownerId && ent.hp > 0);
+    if (!owner) {
+        e.hp = 0;
+        spawnParticles(e.x, e.y, '#8d6e63', 12);
+        return true;
+    }
+
+    const target = owner.target && owner.target.hp > 0 ? owner.target : findClosestEnemyFor(owner);
+    e.target = target || null;
+
+    if (target) {
+        const angle = Math.atan2(target.y - e.y, target.x - e.x);
+        e.angle = angle;
+        e.vx += Math.cos(angle) * 0.55;
+        e.vy += Math.sin(angle) * 0.55;
+    } else {
+        const d = getDistance(e, owner);
+        if (d > 25) {
+            const angle = Math.atan2(owner.y - e.y, owner.x - e.x);
+            e.vx += Math.cos(angle) * 0.25;
+            e.vy += Math.sin(angle) * 0.25;
+        }
+    }
+
+    const maxSpeed = 6.2;
+    const speed = Math.sqrt(e.vx * e.vx + e.vy * e.vy);
+    if (speed > maxSpeed) {
+        e.vx = e.vx / speed * maxSpeed;
+        e.vy = e.vy / speed * maxSpeed;
+    }
+
+    return true;
+}
+
+function ensureMammothMount(rider) {
+    if (!rider || rider.type !== 'mammoth') return null;
+
+    let mount = rider.mammothId
+        ? entities.find(ent => ent.id === rider.mammothId && ent.hp > 0 && ent.type === 'mammoth_mount')
+        : null;
+
+    if (!mount && !isSetupPhase && rider.hp > 0) {
+        mount = createFighter('mammoth_mount', rider.x, rider.y + 18, rider.team, false, rider.id, null, rider.spawnSide, rider.spawnIndex);
+        mount.ownerId = rider.id;
+        mount.color = '#6d4c41';
+        mount.originalType = 'mammoth_mount';
+        mount.realType = 'mammoth_mount';
+        mount.radius = 38;
+        mount.mass = 6.2;
+        mount.hp = Math.max(mount.hp || 0, 220 * (GLOBAL_HP_MULT || 1));
+        mount.maxHp = mount.hp;
+        mount.bravery = 1;
+        mount.angle = rider.angle || 0;
+        entities.push(mount);
+
+        rider.mammothId = mount.id;
+        rider.isMounted = true;
+        spawnParticles(rider.x, rider.y, '#8d6e63', 24);
+        spawnDamageText(rider.x, rider.y - 38, 'MAMMOTH!', '#8d6e63', true);
+        if (typeof playSound === 'function') playSound('heavy_hit', 0.45);
+    }
+
+    return mount || null;
+}
+
+function updateMammothRider(e) {
+    if (!e || e.type !== 'mammoth' || e.hp <= 0) return;
+
+    const mount = ensureMammothMount(e);
+    if (!mount || mount.hp <= 0) return;
+
+    if (e.mammothStompCooldown === undefined) e.mammothStompCooldown = 0;
+    if (e.mammothStompCooldown > 0) e.mammothStompCooldown--;
+
+    const enemies = getVisibleEnemyCandidatesFor(e);
+    enemies.forEach(enemy => {
+        const d = getDistance(mount, enemy);
+        if (d < mount.radius + enemy.radius + 20) {
+            const angle = Math.atan2(enemy.y - mount.y, enemy.x - mount.x);
+
+            if (e.mammothStompCooldown <= 0) {
+                damageEntity(enemy, 9.0, enemy.x, enemy.y, e);
+                enemy.vx += Math.cos(angle) * 9.5;
+                enemy.vy += Math.sin(angle) * 9.5;
+                spawnParticles(enemy.x, enemy.y, '#8d6e63', 14);
+                spawnDamageText(enemy.x, enemy.y - 34, 'TRAMPLE', '#8d6e63', true);
+                e.mammothStompCooldown = 22;
+                if (typeof playSound === 'function') playSound('heavy_hit', 0.45);
+            } else {
+                enemy.vx += Math.cos(angle) * 0.9;
+                enemy.vy += Math.sin(angle) * 0.9;
+            }
+        }
+    });
+}
+
+function handleMammothRiderAI(e) {
+    if (!e || e.type !== 'mammoth') return false;
+
+    const target = findClosestEnemyFor(e);
+    if (target) {
+        e.target = target;
+    }
+
+    const mount = ensureMammothMount(e);
+    if (mount && mount.hp > 0) {
+        if (target) {
+            mount.target = target;
+            const angle = Math.atan2(target.y - mount.y, target.x - mount.x);
+            mount.angle = angle;
+            mount.vx += Math.cos(angle) * 0.38;
+            mount.vy += Math.sin(angle) * 0.38;
+        }
+
+        // Rider sits visibly above the mammoth instead of moving like a normal ball.
+        e.x = mount.x;
+        e.y = mount.y - mount.radius * 0.42;
+        e.vx = mount.vx * 0.35;
+        e.vy = mount.vy * 0.35;
+        e.angle = mount.angle;
+
+        updateMammothRider(e);
+        return true;
+    }
+
+    return true;
+}
+
+function killOwnedMammothMount(ownerId) {
+    entities.forEach(ent => {
+        if (ent && ent.type === 'mammoth_mount' && ent.ownerId === ownerId && ent.hp > 0) {
+            ent.hp = 0;
+            spawnParticles(ent.x, ent.y, '#8d6e63', 22);
+            spawnParticles(ent.x, ent.y, '#d7ccc8', 10);
+            spawnDamageText(ent.x, ent.y - 30, 'WITHERED', '#8d6e63', true);
+        }
+    });
+}
+
+// Make fish projectiles visibly home in. This sits outside the old projectile loop and corrects their movement every frame.
+function updateAquamarineProjectiles() {
+    projectiles.forEach(p => {
+        if (!p || p.dead || p.type !== 'fish') return;
+
+        let target = p.targetId ? entities.find(en => en.id === p.targetId && en.hp > 0) : null;
+        if (!target) {
+            target = entities
+                .filter(en => en.team !== p.team && en.hp > 0 && en.type !== 'turret' && en.type !== 'boid' && en.type !== 'mammoth_mount')
+                .sort((a, b) => getDistance(p, a) - getDistance(p, b))[0];
+            if (target) p.targetId = target.id;
+        }
+
+        if (target) {
+            const desired = Math.atan2(target.y - p.y, target.x - p.x);
+            const current = Math.atan2(p.vy, p.vx);
+            let diff = desired - current;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+
+            const turn = p.turnRate || 0.13;
+            const nextAngle = current + clamp(diff, -turn, turn);
+            const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 7.5;
+
+            p.vx = Math.cos(nextAngle) * speed;
+            p.vy = Math.sin(nextAngle) * speed;
+        }
+    });
+}
+
+if (typeof applyAI === 'function' && !window.__ballBattleSpecialAIWrapped) {
+    window.__ballBattleSpecialAIWrapped = true;
+    const __baseApplyAI = applyAI;
+
+    applyAI = function patchedApplyAI(e) {
+        if (!e) return;
+        if (!isSetupPhase) {
+            if (e.type === 'mammoth_mount') {
+                handleMammothMountAI(e);
+                return;
+            }
+
+            if (e.type === 'mammoth') {
+                handleMammothRiderAI(e);
+                return;
+            }
+
+            if (e.type === 'aquamarine') {
+                handleAquamarineAI(e);
+                return;
+            }
+
+            if (e.type === 'trapper' && typeof handleEliteTrapperAI === 'function') {
+                handleEliteTrapperAI(e);
+                return;
+            }
+
+            if (e.type === 'bard' && typeof handleBardPrecastAI === 'function' && handleBardPrecastAI(e)) {
+                return;
+            }
+        }
+
+        __baseApplyAI(e);
+    };
+}
+
+if (typeof update === 'function' && !window.__ballBattleProjectileWrapped) {
+    window.__ballBattleProjectileWrapped = true;
+    const __baseUpdate = update;
+
+    update = function patchedUpdate() {
+        updateAquamarineProjectiles();
+        __baseUpdate();
+    };
+}
+
+
+window.addEventListener('DOMContentLoaded', () => { if (typeof showRow === 'function') showRow(1); });
+
+
+
+/* --- FINAL MAMMOTH STABILITY PATCH ---
+   Keeps the rider attached to the mount after physics/collision resolution and prevents rider/mount jitter. */
+function stabilizeMammothRiders() {
+    if (!Array.isArray(entities)) return;
+
+    entities.forEach(rider => {
+        if (!rider || rider.type !== 'mammoth') return;
+
+        const mount = rider.mammothId
+            ? entities.find(ent => ent && ent.id === rider.mammothId && ent.type === 'mammoth_mount' && ent.hp > 0)
+            : null;
+
+        if (!mount || rider.hp <= 0) {
+            if (rider.hp <= 0) killOwnedMammothMount(rider.id);
+            return;
+        }
+
+        // Draw mount before rider so the rider is visible on top instead of buried inside it.
+        const mountIndex = entities.indexOf(mount);
+        const riderIndex = entities.indexOf(rider);
+        if (mountIndex > -1 && riderIndex > -1 && mountIndex > riderIndex) {
+            entities.splice(mountIndex, 1);
+            const newRiderIndex = entities.indexOf(rider);
+            entities.splice(Math.max(0, newRiderIndex), 0, mount);
+        }
+
+        rider.isMounted = true;
+        rider.x = mount.x;
+        rider.y = mount.y - mount.radius * 0.55;
+        rider.vx = 0;
+        rider.vy = 0;
+        rider.angle = mount.angle || rider.angle || 0;
+        rider.teleportCooldown = Math.max(rider.teleportCooldown || 0, 2);
+    });
+}
+
+function handleMammothMountAI(e) {
+    if (!e || e.type !== 'mammoth_mount') return false;
+
+    const owner = entities.find(ent => ent && ent.id === e.ownerId && ent.hp > 0);
+    if (!owner) {
+        e.hp = 0;
+        spawnParticles(e.x, e.y, '#8d6e63', 14);
+        return true;
+    }
+
+    const target = (owner.target && owner.target.hp > 0) ? owner.target : findClosestEnemyFor(owner);
+    e.target = target || null;
+
+    if (target) {
+        const angle = Math.atan2(target.y - e.y, target.x - e.x);
+        let diff = angle - (e.angle || 0);
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+
+        e.angle = (e.angle || 0) + clamp(diff, -0.08, 0.08);
+
+        // Heavy mount acceleration. Smooth enough to avoid shaking, strong enough to charge.
+        e.vx += Math.cos(e.angle) * 0.34;
+        e.vy += Math.sin(e.angle) * 0.34;
+    } else {
+        // Idle near its rider.
+        const dx = owner.x - e.x;
+        const dy = owner.y - e.y;
+        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+
+        if (d > 42) {
+            const angle = Math.atan2(dy, dx);
+            e.angle = angle;
+            e.vx += Math.cos(angle) * 0.18;
+            e.vy += Math.sin(angle) * 0.18;
+        }
+    }
+
+    // Keep it inside the arena with soft wall steering.
+    const pad = e.radius + 8;
+    if (e.x < pad) e.vx += 0.65;
+    if (e.x > canvas.width - pad) e.vx -= 0.65;
+    if (e.y < pad) e.vy += 0.65;
+    if (e.y > canvas.height - pad) e.vy -= 0.65;
+
+    // Smooth damping removes the "seizure" look from accumulated collision impulses.
+    e.vx *= 0.965;
+    e.vy *= 0.965;
+
+    const maxSpeed = 4.8;
+    const speed = Math.sqrt(e.vx * e.vx + e.vy * e.vy);
+    if (speed > maxSpeed) {
+        e.vx = e.vx / speed * maxSpeed;
+        e.vy = e.vy / speed * maxSpeed;
+    }
+
+    return true;
+}
+
+function handleMammothRiderAI(e) {
+    if (!e || e.type !== 'mammoth') return false;
+
+    const target = findClosestEnemyFor(e);
+    if (target) {
+        e.target = target;
+    }
+
+    const mount = ensureMammothMount(e);
+    if (mount && mount.hp > 0) {
+        if (target) {
+            mount.target = target;
+        }
+
+        // Rider is not a separate moving ball while mounted.
+        e.x = mount.x;
+        e.y = mount.y - mount.radius * 0.55;
+        e.vx = 0;
+        e.vy = 0;
+        e.angle = mount.angle || e.angle || 0;
+        e.isMounted = true;
+
+        updateMammothRider(e);
+        return true;
+    }
+
+    return true;
+}
+
+function updateMammothRider(e) {
+    if (!e || e.type !== 'mammoth' || e.hp <= 0) return;
+
+    const mount = ensureMammothMount(e);
+    if (!mount || mount.hp <= 0) return;
+
+    if (e.mammothStompCooldown === undefined) e.mammothStompCooldown = 0;
+    if (e.mammothStompCooldown > 0) e.mammothStompCooldown--;
+
+    const enemies = getEnemyCandidatesFor(e);
+    enemies.forEach(enemy => {
+        if (!enemy || enemy.hp <= 0 || enemy.type === 'mammoth_mount') return;
+
+        const d = getDistance(mount, enemy);
+        if (d < mount.radius + enemy.radius + 14) {
+            const angle = Math.atan2(enemy.y - mount.y, enemy.x - mount.x);
+
+            if (e.mammothStompCooldown <= 0) {
+                damageEntity(enemy, 8.5, enemy.x, enemy.y, e);
+                enemy.vx += Math.cos(angle) * 8.5;
+                enemy.vy += Math.sin(angle) * 8.5;
+                spawnParticles(enemy.x, enemy.y, '#8d6e63', 12);
+                spawnDamageText(enemy.x, enemy.y - 32, 'TRAMPLE', '#8d6e63', true);
+                e.mammothStompCooldown = 26;
+                if (typeof playSound === 'function') playSound('heavy_hit', 0.45);
+            } else {
+                enemy.vx += Math.cos(angle) * 0.65;
+                enemy.vy += Math.sin(angle) * 0.65;
+            }
+        }
+    });
+}
+
+if (typeof update === 'function' && !window.__ballBattleMammothStabilizeWrapped) {
+    window.__ballBattleMammothStabilizeWrapped = true;
+    const __mammothBaseUpdate = update;
+
+    update = function mammothStabilizedUpdate() {
+        __mammothBaseUpdate();
+        stabilizeMammothRiders();
+    };
+}
+
+
+/* --- FARREL FINAL PATCH: resizable controls, visible count inputs, mammoth names, fish latch AI --- */
+(function finalUiAndCreaturePatch() {
+    function clampFinal(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function applyControlPanelHeight(height) {
+        const panel = document.getElementById('controlsPanel');
+        if (!panel) return;
+
+        const safeHeight = clampFinal(Number(height) || 150, 118, 360);
+        document.documentElement.style.setProperty('--control-panel-height', `${safeHeight}px`);
+        panel.dataset.controlHeight = String(safeHeight);
+
+        try {
+            localStorage.setItem('ballBattleControlPanelHeight', String(safeHeight));
+        } catch (err) {
+            // Storage can fail in private/file modes; the UI still works for this session.
+        }
+    }
+
+    function initControlPanelResizer() {
+        const panel = document.getElementById('controlsPanel');
+        if (!panel) return;
+
+        let handle = document.getElementById('controlResizeHandle');
+        if (!handle) {
+            handle = document.createElement('div');
+            handle.id = 'controlResizeHandle';
+            handle.className = 'control-resize-handle';
+            handle.title = 'Drag to resize control panel height';
+            panel.appendChild(handle);
+        }
+
+        let savedHeight = 180;
+        try {
+            savedHeight = Number(localStorage.getItem('ballBattleControlPanelHeight')) || 180;
+        } catch (err) {
+            savedHeight = 180;
+        }
+
+        applyControlPanelHeight(savedHeight);
+
+        let startY = 0;
+        let startHeight = 0;
+        let dragging = false;
+
+        function onMove(event) {
+            if (!dragging) return;
+            const pointerY = event.clientY ?? (event.touches && event.touches[0] ? event.touches[0].clientY : startY);
+            const nextHeight = startHeight + (pointerY - startY);
+            applyControlPanelHeight(nextHeight);
+            event.preventDefault();
+        }
+
+        function onUp() {
+            if (!dragging) return;
+            dragging = false;
+            document.body.classList.remove('is-resizing-controls');
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+        }
+
+        handle.addEventListener('pointerdown', event => {
+            dragging = true;
+            startY = event.clientY;
+            startHeight = panel.getBoundingClientRect().height;
+            document.body.classList.add('is-resizing-controls');
+            window.addEventListener('pointermove', onMove, { passive: false });
+            window.addEventListener('pointerup', onUp);
+            event.preventDefault();
+        });
+    }
+
+    function fixCountInputsNow() {
+        ['p1Count', 'p2Count', 'fsP1Count', 'fsP2Count', 'cameraFighterNumber'].forEach(id => {
+            const input = document.getElementById(id);
+            if (!input) return;
+            input.style.minWidth = id === 'cameraFighterNumber' ? '38px' : '52px';
+            input.style.textAlign = 'center';
+            input.style.fontWeight = '900';
+        });
+    }
+
+    function getOwnerNameForMammoth(mount) {
+        if (!mount) return null;
+        const owner = entities.find(ent => ent && ent.id === mount.ownerId);
+        if (!owner) return null;
+
+        if (owner.displayName) return owner.displayName;
+        if (owner.nameIndex) return `Fighter ${owner.nameIndex}`;
+
+        const num = typeof getFighterNumber === 'function' ? getFighterNumber(owner) : null;
+        if (num) return `Fighter ${num}`;
+
+        return 'Rider';
+    }
+
+    const previousGetEntityName = typeof getEntityName === 'function' ? getEntityName : null;
+    window.getMammothMountLabel = function getMammothMountLabel(mount) {
+        const ownerName = getOwnerNameForMammoth(mount);
+        return ownerName ? `${ownerName}'s Mammoth` : 'Mammoth';
+    };
+
+    if (previousGetEntityName) {
+        getEntityName = function patchedGetEntityName(e) {
+            if (e && e.type === 'mammoth_mount') {
+                return window.getMammothMountLabel(e);
+            }
+
+            return previousGetEntityName(e);
+        };
+    }
+
+    const previousEnsureMammothMount = typeof ensureMammothMount === 'function' ? ensureMammothMount : null;
+    if (previousEnsureMammothMount) {
+        ensureMammothMount = function patchedEnsureMammothMount(rider) {
+            const mount = previousEnsureMammothMount(rider);
+
+            if (mount && rider) {
+                mount.displayName = `${rider.displayName || (rider.nameIndex ? `Fighter ${rider.nameIndex}` : 'Rider')}'s Mammoth`;
+                mount.originalType = 'mammoth_mount';
+                mount.realType = 'mammoth_mount';
+                mount.type = 'mammoth_mount';
+                mount.ownerId = rider.id;
+                mount.radius = Math.max(mount.radius || 0, 38);
+                mount.mass = Math.max(mount.mass || 0, 7.5);
+                mount.bravery = 1;
+                mount.frictionOverride = 0.94;
+            }
+
+            return mount;
+        };
+    }
+
+    // Smoother, less twitchy mammoth mount. This intentionally overrides earlier versions.
+    handleMammothMountAI = function patchedStableMammothMountAI(e) {
+        if (!e || e.type !== 'mammoth_mount') return false;
+
+        const owner = entities.find(ent => ent && ent.id === e.ownerId && ent.hp > 0);
+        if (!owner) {
+            e.hp = 0;
+            spawnParticles(e.x, e.y, '#8d6e63', 14);
+            return true;
+        }
+
+        const target = (owner.target && owner.target.hp > 0) ? owner.target : findClosestEnemyFor(owner);
+        e.target = target || null;
+
+        let desiredAngle = e.angle || 0;
+        if (target) {
+            desiredAngle = Math.atan2(target.y - e.y, target.x - e.x);
+        } else {
+            const dx = owner.x - e.x;
+            const dy = owner.y - e.y;
+            const d = Math.sqrt(dx * dx + dy * dy) || 1;
+            if (d > 48) desiredAngle = Math.atan2(dy, dx);
+        }
+
+        let diff = desiredAngle - (e.angle || 0);
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+
+        // Heavy animal turning: prevents frame-to-frame flip jitter.
+        e.angle = (e.angle || 0) + clampFinal(diff, -0.045, 0.045);
+
+        if (target) {
+            const distance = Math.sqrt((target.x - e.x) ** 2 + (target.y - e.y) ** 2);
+            const accel = distance > 110 ? 0.28 : 0.18;
+            e.vx += Math.cos(e.angle) * accel;
+            e.vy += Math.sin(e.angle) * accel;
+        }
+
+        // Soft arena steering.
+        const pad = (e.radius || 38) + 10;
+        if (e.x < pad) e.vx += 0.72;
+        if (e.x > canvas.width - pad) e.vx -= 0.72;
+        if (e.y < pad) e.vy += 0.72;
+        if (e.y > canvas.height - pad) e.vy -= 0.72;
+
+        // Heavy damping. This is the main anti-seizure stabilizer.
+        e.vx *= 0.925;
+        e.vy *= 0.925;
+
+        const maxSpeed = 3.9;
+        const speed = Math.sqrt(e.vx * e.vx + e.vy * e.vy);
+        if (speed > maxSpeed) {
+            e.vx = e.vx / speed * maxSpeed;
+            e.vy = e.vy / speed * maxSpeed;
+        }
+
+        if (Math.abs(e.vx) < 0.035) e.vx = 0;
+        if (Math.abs(e.vy) < 0.035) e.vy = 0;
+
+        return true;
+    };
+
+    handleMammothRiderAI = function patchedStableMammothRiderAI(e) {
+        if (!e || e.type !== 'mammoth') return false;
+
+        const target = findClosestEnemyFor(e);
+        if (target) e.target = target;
+
+        const mount = ensureMammothMount(e);
+        if (mount && mount.hp > 0) {
+            if (target) mount.target = target;
+
+            e.isMounted = true;
+            e.x = mount.x;
+            e.y = mount.y - (mount.radius || 38) * 0.62;
+            e.vx = 0;
+            e.vy = 0;
+            e.angle = mount.angle || e.angle || 0;
+            e.teleportCooldown = Math.max(e.teleportCooldown || 0, 3);
+
+            updateMammothRider(e);
+            return true;
+        }
+
+        return true;
+    };
+
+    stabilizeMammothRiders = function patchedStabilizeMammothRiders() {
+        if (!Array.isArray(entities)) return;
+
+        entities.forEach(rider => {
+            if (!rider || rider.type !== 'mammoth') return;
+
+            const mount = rider.mammothId
+                ? entities.find(ent => ent && ent.id === rider.mammothId && ent.type === 'mammoth_mount' && ent.hp > 0)
+                : null;
+
+            if (!mount || rider.hp <= 0) {
+                if (rider.hp <= 0 && typeof killOwnedMammothMount === 'function') killOwnedMammothMount(rider.id);
+                return;
+            }
+
+            const mountIndex = entities.indexOf(mount);
+            const riderIndex = entities.indexOf(rider);
+
+            // Mount drawn first, rider drawn immediately after.
+            if (mountIndex > -1 && riderIndex > -1 && mountIndex > riderIndex) {
+                entities.splice(mountIndex, 1);
+                const newRiderIndex = entities.indexOf(rider);
+                entities.splice(Math.max(0, newRiderIndex), 0, mount);
+            }
+
+            rider.isMounted = true;
+            rider.x = mount.x;
+            rider.y = mount.y - (mount.radius || 38) * 0.62;
+            rider.vx = 0;
+            rider.vy = 0;
+            rider.angle = mount.angle || rider.angle || 0;
+            rider.teleportCooldown = Math.max(rider.teleportCooldown || 0, 3);
+
+            // Make the mount ignore tiny physics jitter after resolution.
+            mount.vx *= 0.94;
+            mount.vy *= 0.94;
+            if (Math.abs(mount.vx) < 0.035) mount.vx = 0;
+            if (Math.abs(mount.vy) < 0.035) mount.vy = 0;
+        });
+    };
+
+    // Better fish: they chase, can be swatted, and latch/eat for several seconds on hit.
+    updateAquamarineProjectiles = function patchedAquamarineProjectiles() {
+        projectiles.forEach(p => {
+            if (!p || p.dead || p.type !== 'fish') return;
+
+            if (p.fishHp === undefined) p.fishHp = 12;
+            if (p.fishPhase === undefined) p.fishPhase = Math.random() * Math.PI * 2;
+
+            if (p.latchedTargetId) {
+                const target = entities.find(en => en && en.id === p.latchedTargetId && en.hp > 0);
+
+                if (!target) {
+                    p.dead = true;
+                    return;
+                }
+
+                p.latchTimer = (p.latchTimer || 0) - 1;
+                p.biteTick = (p.biteTick || 0) + 1;
+
+                const orbit = (target.radius || 20) + 7;
+                const angle = p.fishPhase + frameCount * 0.11;
+                p.x = target.x + Math.cos(angle) * orbit;
+                p.y = target.y + Math.sin(angle) * orbit;
+                p.vx = target.vx || 0;
+                p.vy = target.vy || 0;
+
+                // Chewing effect: repeated small damage and drag.
+                if (p.biteTick % 18 === 0) {
+                    const source = entities.find(a => a && a.id === p.shooterId);
+                    damageEntity(target, 2.4, p.x, p.y, source || null);
+                    target.vx *= 0.82;
+                    target.vy *= 0.82;
+                    spawnParticles(p.x, p.y, '#00cec9', 4);
+                    spawnDamageText(p.x, p.y - 14, 'CHOMP', '#00cec9');
+                    if (typeof playSound === 'function') playSound('hit', 0.2);
+                }
+
+                if (p.latchTimer <= 0) {
+                    p.dead = true;
+                    spawnParticles(p.x, p.y, '#81ecec', 5);
+                }
+
+                return;
+            }
+
+            let target = p.targetId ? entities.find(en => en && en.id === p.targetId && en.hp > 0) : null;
+
+            if (!target) {
+                target = entities
+                    .filter(en =>
+                        en &&
+                        en.team !== p.team &&
+                        en.hp > 0 &&
+                        en.type !== 'turret' &&
+                        en.type !== 'boid' &&
+                        en.type !== 'mammoth_mount'
+                    )
+                    .sort((a, b) => getDistance(p, a) - getDistance(p, b))[0];
+
+                if (target) p.targetId = target.id;
+            }
+
+            if (!target) return;
+
+            // Nearby enemies can kill fish before they latch.
+            const closeDefender = entities
+                .filter(en =>
+                    en &&
+                    en.team !== p.team &&
+                    en.hp > 0 &&
+                    !en.isDancing &&
+                    !en.frozen &&
+                    en.type !== 'turret' &&
+                    en.type !== 'boid' &&
+                    en.type !== 'mammoth_mount' &&
+                    getDistance(p, en) < (en.radius || 20) + 34
+                )
+                .sort((a, b) => getDistance(p, a) - getDistance(p, b))[0];
+
+            if (closeDefender && Math.random() < 0.055) {
+                p.fishHp -= ['samurai', 'scythe', 'knight', 'lance', 'pirate', 'rogue', 'trapper', 'bard'].includes(closeDefender.type) ? 5 : 3;
+                spawnParticles(p.x, p.y, '#dfe6e9', 2);
+
+                if (p.fishHp <= 0) {
+                    p.dead = true;
+                    spawnDamageText(p.x, p.y - 12, 'SPLASH', '#81ecec');
+                    spawnParticles(p.x, p.y, '#81ecec', 8);
+                    if (typeof playSound === 'function') playSound('clash', 0.18);
+                    return;
+                }
+            }
+
+            const desired = Math.atan2(target.y - p.y, target.x - p.x);
+            const current = Math.atan2(p.vy || 0, p.vx || 0);
+            let diff = desired - current;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+
+            const turn = p.turnRate || 0.18;
+            const nextAngle = current + clampFinal(diff, -turn, turn);
+            const speed = clampFinal((Math.sqrt((p.vx || 0) ** 2 + (p.vy || 0) ** 2) || 7.5) + 0.03, 6.2, 9.2);
+
+            p.vx = Math.cos(nextAngle) * speed;
+            p.vy = Math.sin(nextAngle) * speed;
+        });
+    };
+
+    // Draw helper for latched fish without rewriting the whole draw loop.
+    if (!window.__fishDrawOverlayWrapped && typeof draw === 'function') {
+        window.__fishDrawOverlayWrapped = true;
+        const previousDraw = draw;
+
+        draw = function patchedDrawWithLatchedFishOverlay() {
+            previousDraw();
+
+            if (!Array.isArray(projectiles)) return;
+
+            ctx.save();
+            // The previous overlay was drawn in screen space. Re-apply the world camera transform
+            // so latched fish stay glued to the target even while the camera tracks or zooms.
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(camera.zoom, camera.zoom);
+            ctx.translate(-camera.x, -camera.y);
+
+            projectiles.forEach(p => {
+                if (!p || p.dead || p.type !== 'fish' || !p.latchedTargetId) return;
+
+                const target = entities.find(en => en && en.id === p.latchedTargetId && en.hp > 0);
+                if (!target) return;
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(Math.atan2(target.y - p.y, target.x - p.x));
+
+                ctx.fillStyle = '#00cec9';
+                ctx.strokeStyle = '#003b46';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 11, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Open bite jaw.
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.moveTo(8, -4);
+                ctx.lineTo(17, 0);
+                ctx.lineTo(8, 4);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = '#003b46';
+                ctx.beginPath();
+                ctx.arc(2, -2, 1.8, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+
+                ctx.strokeStyle = 'rgba(0, 206, 201, 0.55)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(target.x, target.y, (target.radius || 20) + 10 + Math.sin(frameCount * 0.2) * 2, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+            ctx.restore();
+        };
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            initControlPanelResizer();
+            fixCountInputsNow();
+        });
+    } else {
+        initControlPanelResizer();
+        fixCountInputsNow();
+    }
+
+    // Keep input sizing correct after tabs/modes rebuild pieces of the UI.
+    const previousShowRow = typeof showRow === 'function' ? showRow : null;
+    if (previousShowRow && !window.__showRowResizeFixed) {
+        window.__showRowResizeFixed = true;
+        showRow = function patchedShowRow(rowNum) {
+            previousShowRow(rowNum);
+            fixCountInputsNow();
+        };
+    }
+})();
+
+
+/* --- FINAL UI STABILITY PATCH V2: fixed toggle + free resizer + squad visibility guard --- */
+(function finalUiStabilityPatchV2() {
+    const HEIGHT_KEY = 'ballBattleControlPanelHeightV2';
+
+    function clampV2(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function getMaxPanelHeight() {
+        const viewport = window.innerHeight || 720;
+        return Math.max(120, Math.floor(viewport * 0.82));
+    }
+
+    function applyControlPanelHeightV2(height) {
+        const panel = document.getElementById('controlsPanel');
+        if (!panel) return;
+
+        const safeHeight = clampV2(Number(height) || 150, 54, getMaxPanelHeight());
+        document.documentElement.style.setProperty('--control-panel-height', `${safeHeight}px`);
+        panel.dataset.controlHeight = String(safeHeight);
+
+        try {
+            localStorage.setItem(HEIGHT_KEY, String(safeHeight));
+            // Keep the old key synced so older code does not drag the panel back unexpectedly.
+            localStorage.setItem('ballBattleControlPanelHeight', String(safeHeight));
+        } catch (err) {
+            // Storage can fail in private/file modes.
+        }
+    }
+
+    function installControlPanelResizerV2() {
+        const panel = document.getElementById('controlsPanel');
+        if (!panel) return;
+
+        let oldHandle = document.getElementById('controlResizeHandle');
+        let handle = document.createElement('div');
+        handle.id = 'controlResizeHandle';
+        handle.className = 'control-resize-handle';
+        handle.title = 'Drag to resize control panel height';
+        if (oldHandle && oldHandle.parentNode) {
+            oldHandle.parentNode.replaceChild(handle, oldHandle);
+        } else {
+            panel.appendChild(handle);
+        }
+
+        let savedHeight = 180;
+        try {
+            savedHeight =
+                Number(localStorage.getItem(HEIGHT_KEY)) ||
+                Number(localStorage.getItem('ballBattleControlPanelHeight')) ||
+                180;
+        } catch (err) {
+            savedHeight = 180;
+        }
+
+        applyControlPanelHeightV2(savedHeight);
+
+        let startY = 0;
+        let startHeight = 0;
+        let dragging = false;
+
+        function onMove(event) {
+            if (!dragging) return;
+            const point = event.touches && event.touches[0] ? event.touches[0] : event;
+            const pointerY = point.clientY || startY;
+            const nextHeight = startHeight + (pointerY - startY);
+            applyControlPanelHeightV2(nextHeight);
+            event.preventDefault();
+        }
+
+        function onUp() {
+            if (!dragging) return;
+            dragging = false;
+            document.body.classList.remove('is-resizing-controls');
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('touchmove', onMove);
+            window.removeEventListener('touchend', onUp);
+        }
+
+        handle.addEventListener('pointerdown', event => {
+            dragging = true;
+            startY = event.clientY;
+            startHeight = panel.getBoundingClientRect().height;
+            document.body.classList.add('is-resizing-controls');
+            window.addEventListener('pointermove', onMove, { passive: false });
+            window.addEventListener('pointerup', onUp);
+            event.preventDefault();
+        });
+
+        handle.addEventListener('touchstart', event => {
+            const touch = event.touches && event.touches[0];
+            if (!touch) return;
+            dragging = true;
+            startY = touch.clientY;
+            startHeight = panel.getBoundingClientRect().height;
+            document.body.classList.add('is-resizing-controls');
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('touchend', onUp);
+            event.preventDefault();
+        }, { passive: false });
+
+        window.addEventListener('resize', () => {
+            const current = Number(panel.dataset.controlHeight) || savedHeight || 150;
+            applyControlPanelHeightV2(current);
+        });
+    }
+
+    function installControlToggleV2() {
+        const panel = document.getElementById('controlsPanel');
+        const btn = document.getElementById('toggleControlsBtn');
+        if (!panel || !btn) return;
+
+        window.controlsVisible = !panel.classList.contains('controls-hidden');
+
+        window.toggleControls = function toggleControlsV2() {
+            const controls = document.getElementById('controlsPanel');
+            const toggleBtn = document.getElementById('toggleControlsBtn');
+            if (!controls || !toggleBtn) return;
+
+            window.controlsVisible = controls.classList.contains('controls-hidden');
+
+            if (window.controlsVisible) {
+                controls.classList.remove('controls-hidden');
+                controls.style.removeProperty('display');
+                toggleBtn.innerHTML = 'Hide Controls &#9650;';
+                toggleBtn.style.backgroundColor = '#555';
+                window.controlsVisible = true;
+            } else {
+                controls.classList.add('controls-hidden');
+                controls.style.setProperty('display', 'none', 'important');
+                toggleBtn.innerHTML = 'Show Controls &#9660;';
+                toggleBtn.style.backgroundColor = '#2d3436';
+                window.controlsVisible = false;
+            }
+        };
+    }
+
+    function normalizeCameraDockTextForFit() {
+        const dock = document.getElementById('fullscreenCameraDock');
+        if (!dock) return;
+
+        const fold = document.getElementById('fullscreenCameraFoldBtn');
+        if (fold && !document.body.classList.contains('watch-fullscreen-active')) {
+            fold.textContent = 'Hide Cam';
+        }
+
+        const jumpLabel = dock.querySelector('.camera-jump span');
+        if (jumpLabel) jumpLabel.textContent = 'Fighter';
+    }
+
+    function guardSquadTabFit() {
+        const p1 = document.getElementById('p1SquadContainer');
+        const p2 = document.getElementById('p2SquadContainer');
+        [p1, p2].forEach(col => {
+            if (!col) return;
+            col.style.minHeight = '0';
+            col.style.overflowY = 'auto';
+            col.style.overflowX = 'hidden';
+        });
+    }
+
+    function installV2() {
+        installControlToggleV2();
+        installControlPanelResizerV2();
+        normalizeCameraDockTextForFit();
+        guardSquadTabFit();
+
+        // Keep the compact squad layout applied after the game regenerates the squad cards.
+        const originalUpdateSquadUI = window.updateSquadUI;
+        if (typeof originalUpdateSquadUI === 'function' && !originalUpdateSquadUI.__v2Wrapped) {
+            const wrapped = function updateSquadUIV2Wrapper() {
+                const result = originalUpdateSquadUI.apply(this, arguments);
+                setTimeout(guardSquadTabFit, 0);
+                return result;
+            };
+            wrapped.__v2Wrapped = true;
+            window.updateSquadUI = wrapped;
+        }
+
+        if (typeof window.showRow === 'function' && !window.showRow.__v2Wrapped) {
+            const oldShowRow = window.showRow;
+            const showWrapped = function showRowV2Wrapper(rowNumber) {
+                const result = oldShowRow.apply(this, arguments);
+                setTimeout(() => {
+                    guardSquadTabFit();
+                    normalizeCameraDockTextForFit();
+                }, 0);
+                return result;
+            };
+            showWrapped.__v2Wrapped = true;
+            window.showRow = showWrapped;
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', installV2);
+    } else {
+        installV2();
+    }
+
+    // Run once more after previous patches finish their own DOMContentLoaded handlers.
+    setTimeout(installV2, 0);
+    setTimeout(() => {
+        guardSquadTabFit();
+        normalizeCameraDockTextForFit();
+    }, 250);
+})();
+
+
+/* --- FINAL UI STABILITY PATCH V2C: default height reset and dock compact observer --- */
+(function finalUiStabilityPatchV2C() {
+    function applyBetterDefaultHeightIfNeeded() {
+        const panel = document.getElementById('controlsPanel');
+        if (!panel) return;
+
+        let saved = null;
+        try {
+            saved = localStorage.getItem('ballBattleControlPanelHeightV2');
+        } catch (err) {
+            saved = null;
+        }
+
+        if (!saved || Number(saved) <= 150) {
+            const defaultHeight = 180;
+            document.documentElement.style.setProperty('--control-panel-height', `${defaultHeight}px`);
+            panel.dataset.controlHeight = String(defaultHeight);
+            try {
+                localStorage.setItem('ballBattleControlPanelHeightV2', String(defaultHeight));
+                localStorage.setItem('ballBattleControlPanelHeight', String(defaultHeight));
+            } catch (err) {}
+        }
+    }
+
+    function updateCameraDockCompactClass() {
+        const dock = document.getElementById('fullscreenCameraDock');
+        if (!dock) return;
+
+        const width = dock.getBoundingClientRect().width;
+        dock.classList.toggle('dock-compact', width > 0 && width < 520);
+    }
+
+    function installDockObserver() {
+        const dock = document.getElementById('fullscreenCameraDock');
+        if (!dock) return;
+
+        updateCameraDockCompactClass();
+
+        if (typeof ResizeObserver !== 'undefined' && !dock.__dockCompactObserverInstalled) {
+            dock.__dockCompactObserverInstalled = true;
+            const observer = new ResizeObserver(updateCameraDockCompactClass);
+            observer.observe(dock);
+        }
+
+        window.addEventListener('resize', updateCameraDockCompactClass);
+    }
+
+    function install() {
+        applyBetterDefaultHeightIfNeeded();
+        installDockObserver();
+        setTimeout(updateCameraDockCompactClass, 100);
+        setTimeout(updateCameraDockCompactClass, 500);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', install);
+    } else {
+        install();
+    }
+})();
+
+
+/* --- FARREL SPEARER + BLOCKABLE FISH PATCH --- */
+function angleDiffSmall(a, b) {
+    let diff = a - b;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    return Math.abs(diff);
+}
+
+function isFrontFacingBlock(defender, incomingX, incomingY) {
+    if (!defender || defender.hp <= 0 || defender.trappedBy || defender.isDancing) return false;
+
+    let isBlockingType =
+        ((defender.type === 'unarmed' || defender.type === 'laser' || defender.type === 'chameleon' || defender.type === 'grower' || defender.type === 'duplicator' || defender.type === 'chrono' || defender.type === 'regenerator') && defender.isBlocking) ||
+        (defender.type === 'knight') ||
+        (defender.type === 'adapto' && defender.currentMode === 'shield');
+
+    if (!isBlockingType) return false;
+
+    const attackAngle = Math.atan2(incomingY - defender.y, incomingX - defender.x);
+    return angleDiffSmall(attackAngle, defender.angle || 0) < 1.05;
+}
+
+function isFishBlockedByTarget(fish, target) {
+    if (!fish || !target) return false;
+    return isFrontFacingBlock(target, fish.x, fish.y);
+}
+
+function setFishSwarmBlocked(fish, target) {
+    if (!fish || !target) return;
+
+    fish.blockedTargetId = target.id;
+    fish.targetId = target.id;
+    fish.latchedTargetId = null;
+    fish.swarmWaitTimer = Math.max(fish.swarmWaitTimer || 0, 70);
+    fish.fishPhase = fish.fishPhase || Math.random() * Math.PI * 2;
+    fish.life = Math.max(fish.life || 0, 90);
+
+    const orbit = (target.radius || 20) + 36;
+    const angle = (target.angle || 0) + Math.PI + Math.sin(frameCount * 0.11 + fish.fishPhase) * 0.9;
+    const desiredX = target.x + Math.cos(angle) * orbit;
+    const desiredY = target.y + Math.sin(angle) * orbit;
+
+    fish.vx = (desiredX - fish.x) * 0.16;
+    fish.vy = (desiredY - fish.y) * 0.16;
+
+    if (frameCount % 18 === 0) {
+        spawnParticles(fish.x, fish.y, '#81ecec', 3);
+        spawnDamageText(fish.x, fish.y - 12, 'SWARM', '#81ecec');
+        if (typeof playSound === 'function') playSound('clash', 0.12);
+    }
+}
+
+function findSpearSkewerAnchor(spear, target) {
+    if (!spear || !target) return null;
+
+    const nearWall =
+        target.x < (target.radius || 20) + 34 ||
+        target.x > canvas.width - ((target.radius || 20) + 34) ||
+        target.y < (target.radius || 20) + 34 ||
+        target.y > canvas.height - ((target.radius || 20) + 34);
+
+    if (nearWall) {
+        return { type: 'wall', x: target.x, y: target.y };
+    }
+
+    const nearObject = obstacles.find(o =>
+        o &&
+        o.type !== 'lava' &&
+        o.type !== 'ice' &&
+        Math.sqrt((target.x - o.x) ** 2 + (target.y - o.y) ** 2) < (target.radius || 20) + (o.radius || 20) + 28
+    );
+
+    if (nearObject) {
+        return { type: 'object', object: nearObject, x: nearObject.x, y: nearObject.y };
+    }
+
+    const nearBody = entities.find(other =>
+        other &&
+        other.id !== target.id &&
+        other.hp > 0 &&
+        other.type !== 'turret' &&
+        other.type !== 'boid' &&
+        Math.sqrt((target.x - other.x) ** 2 + (target.y - other.y) ** 2) < (target.radius || 20) + (other.radius || 20) + 30
+    );
+
+    if (nearBody) {
+        return { type: 'entity', entity: nearBody, x: nearBody.x, y: nearBody.y };
+    }
+
+    return null;
+}
+
+function pinTargetWithSpear(target, spear, source, anchor) {
+    if (!target || !spear) return;
+
+    const duration = spear.spearKind === 'bounce' ? 80 : 120;
+    target.spearPinnedTimer = Math.max(target.spearPinnedTimer || 0, duration);
+    target.spearPinSourceId = source ? source.id : spear.shooterId;
+    target.spearPinKind = spear.spearKind || 'normal';
+    target.spearPinAngle = Math.atan2(spear.vy || 0, spear.vx || 0);
+    target.spearPinAnchorType = anchor ? anchor.type : 'none';
+    target.spearPinX = target.x;
+    target.spearPinY = target.y;
+    target.spearBreakHp = 16 + Math.random() * 10;
+    target.frozen = Math.max(target.frozen || 0, 8);
+    target.vx *= 0.08;
+    target.vy *= 0.08;
+
+    if (anchor && anchor.entity) {
+        target.spearPinnedToId = anchor.entity.id;
+        anchor.entity.spearPinnedTimer = Math.max(anchor.entity.spearPinnedTimer || 0, Math.floor(duration * 0.55));
+        anchor.entity.frozen = Math.max(anchor.entity.frozen || 0, 5);
+        anchor.entity.vx *= 0.2;
+        anchor.entity.vy *= 0.2;
+    } else {
+        target.spearPinnedToId = null;
+    }
+
+    spawnParticles(target.x, target.y, '#dfe6e9', 10);
+    spawnDamageText(target.x, target.y - 34, anchor && anchor.type === 'entity' ? 'SKEWERED' : 'PINNED', '#f5f5dc', true);
+    if (typeof playSound === 'function') playSound('slash', 0.45);
+}
+
+function handleSpearProjectileHit(p, target, source) {
+    if (!p || !target || target.hp <= 0) return;
+    if (target.type === 'mammoth_mount' && source && source.type === 'mammoth') return;
+
+    if (isFrontFacingBlock(target, p.x, p.y)) {
+        const reductionText = target.type === 'knight' || target.type === 'adapto' ? 'SHIELD' : 'BLOCK';
+        spawnParticles(p.x, p.y, '#dfe6e9', 9);
+        spawnDamageText(p.x, p.y - 18, reductionText, '#81ecec', true);
+        target.vx += (p.vx || 0) * 0.05;
+        target.vy += (p.vy || 0) * 0.05;
+
+        if (p.spearKind === 'bounce' && (p.bouncesLeft || 0) > 0) {
+            p.bouncesLeft--;
+            const angle = Math.atan2(p.vy || 0, p.vx || 0) + Math.PI + (Math.random() - 0.5) * 0.9;
+            const speed = 12;
+            p.vx = Math.cos(angle) * speed;
+            p.vy = Math.sin(angle) * speed;
+            return;
+        }
+
+        p.dead = true;
+        return;
+    }
+
+    if (p.spearKind === 'explosive') {
+        damageEntity(target, 8, p.x, p.y, source || null);
+        triggerExplosion(p.x, p.y, 125, 44, p.shooterId || (source && source.id) || null);
+        p.dead = true;
+        return;
+    }
+
+    const anchor = findSpearSkewerAnchor(p, target);
+    if (anchor) {
+        damageEntity(target, p.spearKind === 'bounce' ? 8 : 11, p.x, p.y, source || null);
+        pinTargetWithSpear(target, p, source || null, anchor);
+    } else {
+        damageEntity(target, p.spearKind === 'bounce' ? 10 : 14, p.x, p.y, source || null);
+        target.vx += (p.vx || 0) * 0.45;
+        target.vy += (p.vy || 0) * 0.45;
+        spawnParticles(p.x, p.y, '#dfe6e9', 5);
+    }
+
+    p.dead = true;
+}
+
+function handleSpearObstacleImpact(p, obstacle, shooter) {
+    if (!p || p.dead || p.type !== 'spear' || !obstacle) return false;
+
+    if (p.spearKind === 'explosive') {
+        triggerExplosion(p.x, p.y, 130, 45, p.shooterId || (shooter && shooter.id) || null);
+        p.dead = true;
+        return true;
+    }
+
+    if (p.spearKind === 'bounce' && (p.bouncesLeft || 0) > 0) {
+        const nx = p.x - obstacle.x;
+        const ny = p.y - obstacle.y;
+        const nLen = Math.sqrt(nx * nx + ny * ny) || 1;
+        const ux = nx / nLen;
+        const uy = ny / nLen;
+        const dot = (p.vx || 0) * ux + (p.vy || 0) * uy;
+
+        p.vx = (p.vx || 0) - 2 * dot * ux;
+        p.vy = (p.vy || 0) - 2 * dot * uy;
+        p.bouncesLeft--;
+        p.x += ux * 8;
+        p.y += uy * 8;
+        spawnParticles(p.x, p.y, '#74b9ff', 6);
+        if (typeof playSound === 'function') playSound('clash', 0.3);
+        return true;
+    }
+
+    obstacle.hp -= 9;
+    p.dead = true;
+    spawnParticles(p.x, p.y, '#dfe6e9', 8);
+    spawnDamageText(p.x, p.y - 16, 'STUCK', '#f5f5dc');
+    return true;
+}
+
+function pickSpearerTarget(e) {
+    const enemies = entities.filter(t =>
+        t &&
+        t.hp > 0 &&
+        t.team !== e.team &&
+        t.type !== 'turret' &&
+        t.type !== 'boid' &&
+        t.type !== 'mammoth_mount' &&
+        !t.isStealthed
+    );
+
+    let best = null;
+    let bestScore = -Infinity;
+
+    enemies.forEach(t => {
+        const d = Math.sqrt((t.x - e.x) ** 2 + (t.y - e.y) ** 2);
+        if (d > 720) return;
+
+        const anchor = findSpearSkewerAnchor({ x: e.x, y: e.y, vx: t.x - e.x, vy: t.y - e.y }, t);
+        const cluster = entities.filter(other =>
+            other &&
+            other.id !== t.id &&
+            other.hp > 0 &&
+            Math.sqrt((other.x - t.x) ** 2 + (other.y - t.y) ** 2) < 92
+        ).length;
+
+        let score = 500 - d;
+        if (anchor) score += 230;
+        if (cluster >= 2) score += 160;
+        if (safeHasLineOfSight(e, t)) score += 90;
+        if (t.spearPinnedTimer > 0) score -= 180;
+
+        if (score > bestScore) {
+            bestScore = score;
+            best = t;
+        }
+    });
+
+    return best;
+}
+
+function chooseSpearKind(e, target) {
+    if (!e || !target) return 'normal';
+
+    const clusterEnemies = entities.filter(other =>
+        other &&
+        other.team !== e.team &&
+        other.hp > 0 &&
+        Math.sqrt((other.x - target.x) ** 2 + (other.y - target.y) ** 2) < 90
+    ).length;
+
+    const explosiveReady = (e.explosiveSpearCooldown || 0) <= 0;
+    const bounceReady = (e.bounceSpearCooldown || 0) <= 0;
+    const hasLos = safeHasLineOfSight(e, target);
+
+    const barrelNear = obstacles.some(o =>
+        o &&
+        o.type === 'barrel' &&
+        Math.sqrt((o.x - target.x) ** 2 + (o.y - target.y) ** 2) < 115
+    );
+
+    if (explosiveReady && (clusterEnemies >= 2 || barrelNear)) return 'explosive';
+    if (bounceReady && !hasLos) return 'bounce';
+    if (bounceReady && Math.random() < 0.14) return 'bounce';
+
+    return 'normal';
+}
+
+function throwSpearProjectile(e, target, kind = 'normal') {
+    if (!e || !target) return false;
+
+    const lead = Math.min(18, Math.max(0, getDistance(e, target) / 45));
+    const aimX = target.x + (target.vx || 0) * lead;
+    const aimY = target.y + (target.vy || 0) * lead;
+    const angle = Math.atan2(aimY - e.y, aimX - e.x);
+
+    e.angle = angle;
+
+    const speed = kind === 'bounce' ? 15.5 : 14.2;
+
+    projectiles.push({
+        x: e.x + Math.cos(angle) * ((e.radius || 20) + 18),
+        y: e.y + Math.sin(angle) * ((e.radius || 20) + 18),
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        team: e.team,
+        life: kind === 'bounce' ? 115 : 95,
+        type: 'spear',
+        spearKind: kind,
+        shooterId: e.id,
+        radius: 7,
+        bouncesLeft: kind === 'bounce' ? 3 : 0
+    });
+
+    spawnMuzzleFlash(e, angle, kind === 'explosive' ? 'cannon' : 'bullet');
+    spawnParticles(e.x + Math.cos(angle) * 18, e.y + Math.sin(angle) * 18, kind === 'explosive' ? '#ff7675' : '#dfe6e9', 5);
+
+    if (kind === 'explosive') {
+        e.explosiveSpearCooldown = 210;
+        spawnDamageText(e.x, e.y - 28, 'BOMB SPEAR', '#ff7675', true);
+    } else if (kind === 'bounce') {
+        e.bounceSpearCooldown = 150;
+        spawnDamageText(e.x, e.y - 28, 'BOUNCE SPEAR', '#74b9ff', true);
+    }
+
+    if (typeof playSound === 'function') playSound('arrow', 0.5);
+    return true;
+}
+
+function handleSpearerAI(e) {
+    if (!e || e.type !== 'spearer' || e.hp <= 0 || isSetupPhase || e.isDancing) return false;
+
+    if (e.spearCooldown === undefined) e.spearCooldown = 35;
+    if (e.explosiveSpearCooldown === undefined) e.explosiveSpearCooldown = 150;
+    if (e.bounceSpearCooldown === undefined) e.bounceSpearCooldown = 100;
+
+    if (e.spearCooldown > 0) e.spearCooldown--;
+    if (e.explosiveSpearCooldown > 0) e.explosiveSpearCooldown--;
+    if (e.bounceSpearCooldown > 0) e.bounceSpearCooldown--;
+
+    const target = pickSpearerTarget(e);
+    if (!target) return true;
+
+    e.target = target;
+    const d = getDistance(e, target);
+    const angle = Math.atan2(target.y - e.y, target.x - e.x);
+    e.angle = angle;
+
+    if (d < 150) {
+        e.vx -= Math.cos(angle) * 0.55;
+        e.vy -= Math.sin(angle) * 0.55;
+    } else if (d > 430) {
+        e.vx += Math.cos(angle) * 0.33;
+        e.vy += Math.sin(angle) * 0.33;
+    } else {
+        const side = Math.sin(frameCount * 0.035 + e.id * 11) > 0 ? 1 : -1;
+        e.vx += Math.cos(angle + Math.PI / 2 * side) * 0.13;
+        e.vy += Math.sin(angle + Math.PI / 2 * side) * 0.13;
+    }
+
+    if (e.spearCooldown <= 0 && d < 690) {
+        const kind = chooseSpearKind(e, target);
+
+        if (kind === 'bounce' || safeHasLineOfSight(e, target)) {
+            throwSpearProjectile(e, target, kind);
+            e.spearCooldown = kind === 'normal' ? 48 : 70;
+        }
+    }
+
+    return true;
+}
+
+function updateSpearPinnedEntities() {
+    entities.forEach(e => {
+        if (!e || !e.spearPinnedTimer || e.spearPinnedTimer <= 0) return;
+
+        e.spearPinnedTimer--;
+        e.frozen = Math.max(e.frozen || 0, 3);
+
+        if (e.spearPinnedToId) {
+            const anchor = entities.find(a => a && a.id === e.spearPinnedToId && a.hp > 0);
+            if (anchor) {
+                e.x = e.x * 0.82 + anchor.x * 0.18;
+                e.y = e.y * 0.82 + anchor.y * 0.18;
+            }
+        } else if (e.spearPinAnchorType === 'wall' || e.spearPinAnchorType === 'object') {
+            e.x = e.spearPinX;
+            e.y = e.spearPinY;
+        }
+
+        e.vx *= 0.08;
+        e.vy *= 0.08;
+
+        if (frameCount % 20 === 0) {
+            spawnParticles(e.x, e.y, '#f5f5dc', 2);
+            e.spearBreakHp -= 2.5;
+        }
+
+        if (e.spearBreakHp <= 0 || e.spearPinnedTimer <= 0) {
+            spawnParticles(e.x, e.y, '#dfe6e9', 8);
+            spawnDamageText(e.x, e.y - 24, 'SPEAR BROKE', '#dfe6e9');
+            e.spearPinnedTimer = 0;
+            e.spearPinnedToId = null;
+        }
+    });
+}
+
+function updateSpearWallBouncesPost() {
+    projectiles.forEach(p => {
+        if (!p || p.dead || p.type !== 'spear') return;
+
+        const margin = 8;
+        const hitX = p.x < margin || p.x > canvas.width - margin;
+        const hitY = p.y < margin || p.y > canvas.height - margin;
+
+        if (!hitX && !hitY) return;
+
+        if (p.spearKind === 'explosive') {
+            triggerExplosion(clamp(p.x, margin, canvas.width - margin), clamp(p.y, margin, canvas.height - margin), 120, 40, p.shooterId || null);
+            p.dead = true;
+            return;
+        }
+
+        if (p.spearKind === 'bounce' && (p.bouncesLeft || 0) > 0) {
+            if (hitX) p.vx *= -1;
+            if (hitY) p.vy *= -1;
+            p.x = clamp(p.x, margin, canvas.width - margin);
+            p.y = clamp(p.y, margin, canvas.height - margin);
+            p.bouncesLeft--;
+            p.life = Math.max(p.life, 45);
+            spawnParticles(p.x, p.y, '#74b9ff', 7);
+            if (typeof playSound === 'function') playSound('clash', 0.3);
+        } else {
+            p.dead = true;
+            spawnParticles(clamp(p.x, margin, canvas.width - margin), clamp(p.y, margin, canvas.height - margin), '#dfe6e9', 6);
+        }
+    });
+}
+
+// Add/update spearer data even if the original literal was loaded before this patch.
+if (typeof FIGHTER_DATA !== 'undefined') {
+    FIGHTER_DATA.spearer = FIGHTER_DATA.spearer || {
+        hp: 105,
+        dmg: 'Pierce',
+        ability: 'Skewer Spear Kit',
+        desc: 'Throws normal, explosive, and bouncing spears. Pins enemies near walls, objects, or other balls.'
+    };
+}
+
+if (typeof FIGHTER_OPTIONS !== 'undefined' && !FIGHTER_OPTIONS.includes('spearer')) {
+    FIGHTER_OPTIONS.push('spearer');
+    FIGHTER_OPTIONS.sort();
+}
+
+if (typeof FIGHTER_VISUALS !== 'undefined') {
+    FIGHTER_VISUALS.aquamarine = FIGHTER_VISUALS.aquamarine || { tag: 'AQ', color: '#00cec9', accent: '#81ecec' };
+    FIGHTER_VISUALS.mammoth = FIGHTER_VISUALS.mammoth || { tag: 'MM', color: '#8d6e63', accent: '#d7ccc8' };
+    FIGHTER_VISUALS.mammoth_mount = FIGHTER_VISUALS.mammoth_mount || { tag: 'MT', color: '#6d4c41', accent: '#d7ccc8' };
+    FIGHTER_VISUALS.spearer = FIGHTER_VISUALS.spearer || { tag: 'SR', color: '#7f8c8d', accent: '#f5f5dc' };
+}
+
+(function installSpearerAndFishFinalPatch() {
+    if (typeof applyAI === 'function' && !applyAI.__spearerWrapped) {
+        const previousApplyAI = applyAI;
+        const wrappedApplyAI = function spearerApplyAIWrapper(e) {
+            if (handleSpearerAI(e)) return;
+            return previousApplyAI.apply(this, arguments);
+        };
+        wrappedApplyAI.__spearerWrapped = true;
+        applyAI = wrappedApplyAI;
+    }
+
+    // Override the existing fish steering with block-aware swarming.
+    updateAquamarineProjectiles = function blockAwareAquamarineProjectiles() {
+        projectiles.forEach(p => {
+            if (!p || p.dead || p.type !== 'fish') return;
+
+            if (p.fishHp === undefined) p.fishHp = 12;
+            if (p.fishPhase === undefined) p.fishPhase = Math.random() * Math.PI * 2;
+
+            if (p.latchedTargetId) {
+                const target = entities.find(en => en && en.id === p.latchedTargetId && en.hp > 0);
+
+                if (!target) {
+                    p.dead = true;
+                    return;
+                }
+
+                p.latchTimer = (p.latchTimer || 0) - 1;
+                p.biteTick = (p.biteTick || 0) + 1;
+
+                const orbit = (target.radius || 20) + 7;
+                const angle = p.fishPhase + frameCount * 0.11;
+                p.x = target.x + Math.cos(angle) * orbit;
+                p.y = target.y + Math.sin(angle) * orbit;
+                p.vx = target.vx || 0;
+                p.vy = target.vy || 0;
+
+                if (p.biteTick % 18 === 0) {
+                    const source = entities.find(a => a && a.id === p.shooterId);
+                    damageEntity(target, 2.4, p.x, p.y, source || null);
+                    target.vx *= 0.82;
+                    target.vy *= 0.82;
+                    spawnParticles(p.x, p.y, '#00cec9', 4);
+                    spawnDamageText(p.x, p.y - 14, 'CHOMP', '#00cec9');
+                    if (typeof playSound === 'function') playSound('hit', 0.2);
+                }
+
+                if (p.latchTimer <= 0) {
+                    p.dead = true;
+                    spawnParticles(p.x, p.y, '#81ecec', 5);
+                }
+
+                return;
+            }
+
+            let target = p.targetId ? entities.find(en => en && en.id === p.targetId && en.hp > 0) : null;
+
+            if (!target) {
+                target = entities
+                    .filter(en =>
+                        en &&
+                        en.team !== p.team &&
+                        en.hp > 0 &&
+                        en.type !== 'turret' &&
+                        en.type !== 'boid' &&
+                        en.type !== 'mammoth_mount'
+                    )
+                    .sort((a, b) => getDistance(p, a) - getDistance(p, b))[0];
+
+                if (target) p.targetId = target.id;
+            }
+
+            if (!target) return;
+
+            if (isFishBlockedByTarget(p, target)) {
+                setFishSwarmBlocked(p, target);
+                return;
+            }
+
+            if (p.blockedTargetId === target.id) {
+                p.swarmWaitTimer = Math.max((p.swarmWaitTimer || 0) - 1, 0);
+                if (p.swarmWaitTimer > 0 && getDistance(p, target) < (target.radius || 20) + 52) {
+                    const orbit = (target.radius || 20) + 34;
+                    const angle = p.fishPhase + frameCount * 0.13;
+                    const desiredX = target.x + Math.cos(angle) * orbit;
+                    const desiredY = target.y + Math.sin(angle) * orbit;
+                    p.vx = (desiredX - p.x) * 0.16;
+                    p.vy = (desiredY - p.y) * 0.16;
+                    return;
+                }
+                p.blockedTargetId = null;
+            }
+
+            const closeDefender = entities
+                .filter(en =>
+                    en &&
+                    en.team !== p.team &&
+                    en.hp > 0 &&
+                    !en.isDancing &&
+                    !en.frozen &&
+                    en.type !== 'turret' &&
+                    en.type !== 'boid' &&
+                    en.type !== 'mammoth_mount' &&
+                    getDistance(p, en) < (en.radius || 20) + 34
+                )
+                .sort((a, b) => getDistance(p, a) - getDistance(p, b))[0];
+
+            if (closeDefender && !isFishBlockedByTarget(p, closeDefender) && Math.random() < 0.045) {
+                p.fishHp -= ['samurai', 'scythe', 'knight', 'lance', 'pirate', 'rogue', 'trapper', 'bard', 'spearer'].includes(closeDefender.type) ? 5 : 3;
+                spawnParticles(p.x, p.y, '#dfe6e9', 2);
+
+                if (p.fishHp <= 0) {
+                    p.dead = true;
+                    spawnDamageText(p.x, p.y - 12, 'SPLASH', '#81ecec');
+                    spawnParticles(p.x, p.y, '#81ecec', 8);
+                    if (typeof playSound === 'function') playSound('clash', 0.18);
+                    return;
+                }
+            }
+
+            const desired = Math.atan2(target.y - p.y, target.x - p.x);
+            const current = Math.atan2(p.vy || 0, p.vx || 0);
+            let diff = desired - current;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+
+            const turn = p.turnRate || 0.18;
+            const nextAngle = current + clamp(diff, -turn, turn);
+            const speed = Math.max(6.2, Math.min(9.2, (Math.sqrt((p.vx || 0) ** 2 + (p.vy || 0) ** 2) || 7.5) + 0.03));
+
+            p.vx = Math.cos(nextAngle) * speed;
+            p.vy = Math.sin(nextAngle) * speed;
+        });
+    };
+
+    if (typeof update === 'function' && !update.__spearerFinalWrapped) {
+        const previousUpdate = update;
+        const wrappedUpdate = function spearerFinalUpdateWrapper() {
+            updateSpearPinnedEntities();
+            const result = previousUpdate.apply(this, arguments);
+            updateSpearPinnedEntities();
+            updateSpearWallBouncesPost();
+            return result;
+        };
+        wrappedUpdate.__spearerFinalWrapped = true;
+        update = wrappedUpdate;
+    }
+
+    if (typeof draw === 'function' && !draw.__spearOverlayWrapped) {
+        const previousDraw = draw;
+        const wrappedDraw = function spearOverlayDrawWrapper() {
+            previousDraw.apply(this, arguments);
+
+            ctx.save();
+
+            // Draw pin spears over pinned bodies.
+            entities.forEach(e => {
+                if (!e || !e.spearPinnedTimer || e.spearPinnedTimer <= 0) return;
+
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                ctx.rotate(e.spearPinAngle || 0);
+                ctx.strokeStyle = '#8d6e63';
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(-e.radius - 16, 0);
+                ctx.lineTo(e.radius + 22, 0);
+                ctx.stroke();
+
+                ctx.fillStyle = '#dfe6e9';
+                ctx.strokeStyle = '#2d3436';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(e.radius + 22, -6);
+                ctx.lineTo(e.radius + 38, 0);
+                ctx.lineTo(e.radius + 22, 6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // Draw blocked fish swarm rings.
+            projectiles.forEach(p => {
+                if (!p || p.dead || p.type !== 'fish' || !p.blockedTargetId) return;
+                const target = entities.find(en => en && en.id === p.blockedTargetId && en.hp > 0);
+                if (!target) return;
+
+                ctx.strokeStyle = 'rgba(129, 236, 236, 0.55)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(target.x, target.y, (target.radius || 20) + 35 + Math.sin(frameCount * 0.25 + (p.fishPhase || 0)) * 3, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+
+            ctx.restore();
+        };
+        wrappedDraw.__spearOverlayWrapped = true;
+        draw = wrappedDraw;
+    }
+})();
+
+
+
+/* --- FARREL FISH THREAT + SPEARER COMBAT REWORK PATCH --- */
+function getLiveEnemyFishThreatsFor(fighter, radius = 170) {
+    if (!fighter || fighter.hp <= 0 || typeof projectiles === 'undefined') return [];
+
+    return projectiles
+        .filter(p =>
+            p &&
+            !p.dead &&
+            p.type === 'fish' &&
+            p.team !== fighter.team &&
+            !p.latchedTargetId &&
+            getDistance(p, fighter) <= radius
+        )
+        .sort((a, b) => {
+            const aBlocked = a.blockedTargetId === fighter.id ? 80 : 0;
+            const bBlocked = b.blockedTargetId === fighter.id ? 80 : 0;
+            return (getDistance(a, fighter) - aBlocked) - (getDistance(b, fighter) - bBlocked);
+        });
+}
+
+function getFishThreatPressure(fighter, radius = 170) {
+    return getLiveEnemyFishThreatsFor(fighter, radius).length;
+}
+
+function canFighterActAgainstFish(fighter) {
+    return !!(
+        fighter &&
+        fighter.hp > 0 &&
+        !fighter.isDancing &&
+        !fighter.trappedBy &&
+        !(fighter.frozen > 0)
+    );
+}
+
+function damageFishThreat(fish, amount, label = 'FISH HIT', color = '#b2bec3') {
+    if (!fish || fish.dead) return false;
+
+    fish.fishHp = (fish.fishHp === undefined ? 12 : fish.fishHp) - amount;
+    spawnParticles(fish.x, fish.y, color, 4);
+
+    if (fish.fishHp <= 0) {
+        fish.dead = true;
+        spawnDamageText(fish.x, fish.y - 14, label, color, true);
+        spawnParticles(fish.x, fish.y, '#81ecec', 10);
+        if (typeof playSound === 'function') playSound('clash', 0.2);
+        return true;
+    }
+
+    return false;
+}
+
+function reactToEnemyFishThreat(fighter) {
+    if (!canFighterActAgainstFish(fighter)) return false;
+    if (fighter.type === 'turret' || fighter.type === 'boid' || fighter.type === 'mammoth_mount') return false;
+
+    const fishThreats = getLiveEnemyFishThreatsFor(fighter, 175);
+    if (fishThreats.length === 0) return false;
+
+    const fish = fishThreats[0];
+    const d = getDistance(fighter, fish);
+    const angleToFish = Math.atan2(fish.y - fighter.y, fish.x - fighter.x);
+    fighter.angle = angleToFish;
+
+    const blockingTypes = ['unarmed', 'laser', 'chameleon', 'grower', 'duplicator', 'chrono', 'regenerator'];
+    const weaponTypes = ['samurai', 'scythe', 'knight', 'lance', 'pirate', 'rogue', 'trapper', 'bard', 'fight knight', 'spearer'];
+    const rangedTypes = ['soldier', 'bow', 'wizard', 'engineer', 'dual gunner', 'alchemist', 'laser'];
+    const heavyTypes = ['tank', 'mammoth', 'hardcase', 'big'];
+
+    if (blockingTypes.includes(fighter.type) && d < 125) {
+        if ((fighter.blockCooldown || 0) <= 0 || fighter.isBlocking) {
+            fighter.isBlocking = true;
+            fighter.blockTimer = Math.max(fighter.blockTimer || 0, 28);
+            fighter.vx *= 0.82;
+            fighter.vy *= 0.82;
+            if (frameCount % 18 === 0) {
+                spawnDamageText(fighter.x, fighter.y - 30, 'FISH BLOCK', '#81ecec');
+                spawnParticles(fighter.x + Math.cos(angleToFish) * (fighter.radius + 6), fighter.y + Math.sin(angleToFish) * (fighter.radius + 6), '#81ecec', 2);
+            }
+            return true;
+        }
+    }
+
+    if (fighter.type === 'adapto' && d < 135) {
+        fighter.currentMode = 'shield';
+        fighter.vx -= Math.cos(angleToFish) * 0.25;
+        fighter.vy -= Math.sin(angleToFish) * 0.25;
+        if (frameCount % 16 === 0) spawnDamageText(fighter.x, fighter.y - 30, 'SHIELD FISH', '#81ecec');
+        return true;
+    }
+
+    if (weaponTypes.includes(fighter.type) && d < 105) {
+        const hitPower = fighter.type === 'spearer' ? 7.5 : fighter.type === 'samurai' ? 8 : fighter.type === 'scythe' ? 7 : 6;
+        if (frameCount % 5 === 0 || Math.random() < 0.12) {
+            damageFishThreat(fish, hitPower, 'FISH CUT', '#dfe6e9');
+            fighter.vx -= Math.cos(angleToFish) * 0.18;
+            fighter.vy -= Math.sin(angleToFish) * 0.18;
+        }
+        return true;
+    }
+
+    if (rangedTypes.includes(fighter.type) && d < 155) {
+        if (frameCount % 9 === 0) {
+            damageFishThreat(fish, fighter.type === 'wizard' ? 6 : 4.5, fighter.type === 'wizard' ? 'ZAP FISH' : 'FISH SHOT', fighter.type === 'wizard' ? '#00ffff' : '#dfe6e9');
+            spawnParticles((fighter.x + fish.x) / 2, (fighter.y + fish.y) / 2, fighter.type === 'wizard' ? '#00ffff' : '#dfe6e9', 2);
+        }
+
+        if (d < 95 && fighter.type !== 'laser') {
+            fighter.vx -= Math.cos(angleToFish) * 0.35;
+            fighter.vy -= Math.sin(angleToFish) * 0.35;
+            return true;
+        }
+
+        return false;
+    }
+
+    if (heavyTypes.includes(fighter.type) && fishThreats.length >= 3 && d < 120) {
+        if (frameCount % 12 === 0) {
+            fishThreats.slice(0, 3).forEach(f => damageFishThreat(f, 5.5, 'CRUSH FISH', '#8d6e63'));
+        }
+        return false;
+    }
+
+    if (d < 75) {
+        fighter.vx -= Math.cos(angleToFish) * 0.38;
+        fighter.vy -= Math.sin(angleToFish) * 0.38;
+        return true;
+    }
+
+    return false;
+}
+
+function spearerMeleeShove(spearer, target) {
+    if (!spearer || !target || target.hp <= 0) return false;
+
+    const angle = Math.atan2(target.y - spearer.y, target.x - spearer.x);
+    spearer.angle = angle;
+
+    const spearTipX = spearer.x + Math.cos(angle) * ((spearer.radius || 20) + 40);
+    const spearTipY = spearer.y + Math.sin(angle) * ((spearer.radius || 20) + 40);
+
+    damageEntity(target, 4.5, spearTipX, spearTipY, spearer);
+
+    target.vx += Math.cos(angle) * 8.5;
+    target.vy += Math.sin(angle) * 8.5;
+    spearer.vx -= Math.cos(angle) * 4.2;
+    spearer.vy -= Math.sin(angle) * 4.2;
+
+    spearer.spearMeleeCooldown = 42;
+    spearer.spearRetreatTimer = 40;
+    spearer.spearCooldown = Math.max(spearer.spearCooldown || 0, 20);
+
+    spawnParticles(spearTipX, spearTipY, '#f5f5dc', 8);
+    spawnDamageText(target.x, target.y - 30, 'SPEAR SHOVE', '#f5f5dc', true);
+    if (typeof playSound === 'function') playSound('slash', 0.42);
+
+    return true;
+}
+
+// Replaces the previous Spearer throw tuning.
+// Bouncing spears now behave like arena pinballs and do not expire quickly.
+throwSpearProjectile = function upgradedThrowSpearProjectile(e, target, kind = 'normal') {
+    if (!e || !target) return false;
+
+    const lead = Math.min(22, Math.max(0, getDistance(e, target) / 42));
+    const aimX = target.x + (target.vx || 0) * lead;
+    const aimY = target.y + (target.vy || 0) * lead;
+    const angle = Math.atan2(aimY - e.y, aimX - e.x);
+
+    e.angle = angle;
+
+    const speed = kind === 'bounce' ? 16.2 : kind === 'explosive' ? 13.5 : 14.8;
+
+    projectiles.push({
+        x: e.x + Math.cos(angle) * ((e.radius || 20) + 22),
+        y: e.y + Math.sin(angle) * ((e.radius || 20) + 22),
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        team: e.team,
+        life: kind === 'bounce' ? 9999 : 105,
+        type: 'spear',
+        spearKind: kind,
+        shooterId: e.id,
+        radius: kind === 'explosive' ? 8 : 7,
+        bouncesLeft: kind === 'bounce' ? 999 : 0,
+        persistentBounce: kind === 'bounce',
+        maxSpearAge: kind === 'bounce' ? 1500 : 105,
+        spearAge: 0
+    });
+
+    spawnMuzzleFlash(e, angle, kind === 'explosive' ? 'cannon' : 'bullet');
+    spawnParticles(e.x + Math.cos(angle) * 18, e.y + Math.sin(angle) * 18, kind === 'explosive' ? '#ff7675' : (kind === 'bounce' ? '#74b9ff' : '#dfe6e9'), 5);
+
+    if (kind === 'explosive') {
+        e.explosiveSpearCooldown = 210;
+        spawnDamageText(e.x, e.y - 28, 'BOMB SPEAR', '#ff7675', true);
+    } else if (kind === 'bounce') {
+        e.bounceSpearCooldown = 180;
+        spawnDamageText(e.x, e.y - 28, 'PINBALL SPEAR', '#74b9ff', true);
+    }
+
+    if (typeof playSound === 'function') playSound('arrow', 0.5);
+    return true;
+};
+
+handleSpearProjectileHit = function upgradedHandleSpearProjectileHit(p, target, source) {
+    if (!p || !target || target.hp <= 0) return;
+    if (target.type === 'mammoth_mount' && source && source.type === 'mammoth') return;
+
+    const incomingAngle = Math.atan2(p.vy || 0, p.vx || 0);
+    const knockX = Math.cos(incomingAngle);
+    const knockY = Math.sin(incomingAngle);
+
+    if (isFrontFacingBlock(target, p.x, p.y)) {
+        const reductionText = target.type === 'knight' || target.type === 'adapto' ? 'SHIELD' : 'BLOCK';
+        spawnParticles(p.x, p.y, '#dfe6e9', 9);
+        spawnDamageText(p.x, p.y - 18, reductionText, '#81ecec', true);
+        target.vx += (p.vx || 0) * 0.08;
+        target.vy += (p.vy || 0) * 0.08;
+
+        if (p.spearKind === 'bounce') {
+            const angle = incomingAngle + Math.PI + (Math.random() - 0.5) * 0.8;
+            const speed = Math.max(12, Math.sqrt((p.vx || 0) ** 2 + (p.vy || 0) ** 2));
+            p.vx = Math.cos(angle) * speed;
+            p.vy = Math.sin(angle) * speed;
+            p.life = 9999;
+            p.spearAge = (p.spearAge || 0) + 25;
+            return;
+        }
+
+        p.dead = true;
+        return;
+    }
+
+    if (p.spearKind === 'explosive') {
+        damageEntity(target, 8, p.x, p.y, source || null);
+        target.vx += knockX * 4.5;
+        target.vy += knockY * 4.5;
+        triggerExplosion(p.x, p.y, 125, 44, p.shooterId || (source && source.id) || null);
+        p.dead = true;
+        return;
+    }
+
+    const anchor = findSpearSkewerAnchor(p, target);
+    const isNormal = !p.spearKind || p.spearKind === 'normal';
+
+    if (anchor) {
+        damageEntity(target, p.spearKind === 'bounce' ? 8 : 11, p.x, p.y, source || null);
+
+        if (isNormal) {
+            target.vx += knockX * 5.5;
+            target.vy += knockY * 5.5;
+        }
+
+        pinTargetWithSpear(target, p, source || null, anchor);
+    } else {
+        damageEntity(target, p.spearKind === 'bounce' ? 10 : 14, p.x, p.y, source || null);
+
+        const pushPower = isNormal ? 9.5 : 6.0;
+        target.vx += knockX * pushPower;
+        target.vy += knockY * pushPower;
+        spawnParticles(p.x, p.y, '#dfe6e9', 5);
+        if (isNormal) spawnDamageText(target.x, target.y - 25, 'KNOCKBACK', '#f5f5dc');
+    }
+
+    p.dead = true;
+};
+
+handleSpearObstacleImpact = function upgradedHandleSpearObstacleImpact(p, obstacle, shooter) {
+    if (!p || p.dead || p.type !== 'spear' || !obstacle) return false;
+
+    if (p.spearKind === 'explosive') {
+        triggerExplosion(p.x, p.y, 130, 45, p.shooterId || (shooter && shooter.id) || null);
+        p.dead = true;
+        return true;
+    }
+
+    if (p.spearKind === 'bounce') {
+        const nx = p.x - obstacle.x;
+        const ny = p.y - obstacle.y;
+        const nLen = Math.sqrt(nx * nx + ny * ny) || 1;
+        const ux = nx / nLen;
+        const uy = ny / nLen;
+        const dot = (p.vx || 0) * ux + (p.vy || 0) * uy;
+        const speed = Math.max(12.5, Math.sqrt((p.vx || 0) ** 2 + (p.vy || 0) ** 2));
+
+        p.vx = ((p.vx || 0) - 2 * dot * ux);
+        p.vy = ((p.vy || 0) - 2 * dot * uy);
+
+        const newLen = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1;
+        p.vx = (p.vx / newLen) * speed;
+        p.vy = (p.vy / newLen) * speed;
+        p.x += ux * 10;
+        p.y += uy * 10;
+        p.life = 9999;
+        p.spearAge = (p.spearAge || 0) + 20;
+
+        spawnParticles(p.x, p.y, '#74b9ff', 6);
+        if (typeof playSound === 'function') playSound('clash', 0.25);
+        return true;
+    }
+
+    obstacle.hp -= 9;
+    p.dead = true;
+    spawnParticles(p.x, p.y, '#dfe6e9', 8);
+    spawnDamageText(p.x, p.y - 16, 'STUCK', '#f5f5dc');
+    return true;
+};
+
+updateSpearWallBouncesPost = function upgradedUpdateSpearWallBouncesPost() {
+    projectiles.forEach(p => {
+        if (!p || p.dead || p.type !== 'spear') return;
+
+        if (p.spearKind === 'bounce') {
+            p.spearAge = (p.spearAge || 0) + 1;
+            p.life = 9999;
+
+            const stillHasEnemy = entities.some(e =>
+                e &&
+                e.hp > 0 &&
+                e.team !== p.team &&
+                e.type !== 'turret' &&
+                e.type !== 'boid' &&
+                e.type !== 'mammoth_mount'
+            );
+
+            if (!stillHasEnemy || p.spearAge > (p.maxSpearAge || 1500)) {
+                p.dead = true;
+                spawnParticles(p.x, p.y, '#74b9ff', 6);
+                return;
+            }
+        }
+
+        const margin = 8;
+        const hitX = p.x < margin || p.x > canvas.width - margin;
+        const hitY = p.y < margin || p.y > canvas.height - margin;
+
+        if (!hitX && !hitY) return;
+
+        if (p.spearKind === 'explosive') {
+            triggerExplosion(clamp(p.x, margin, canvas.width - margin), clamp(p.y, margin, canvas.height - margin), 120, 40, p.shooterId || null);
+            p.dead = true;
+            return;
+        }
+
+        if (p.spearKind === 'bounce') {
+            if (hitX) p.vx *= -1;
+            if (hitY) p.vy *= -1;
+            p.x = clamp(p.x, margin, canvas.width - margin);
+            p.y = clamp(p.y, margin, canvas.height - margin);
+            p.life = 9999;
+            spawnParticles(p.x, p.y, '#74b9ff', 7);
+            if (typeof playSound === 'function') playSound('clash', 0.25);
+        } else {
+            p.dead = true;
+            spawnParticles(clamp(p.x, margin, canvas.width - margin), clamp(p.y, margin, canvas.height - margin), '#dfe6e9', 6);
+        }
+    });
+};
+
+handleSpearerAI = function upgradedHandleSpearerAI(e) {
+    if (!e || e.type !== 'spearer' || e.hp <= 0 || isSetupPhase || e.isDancing) return false;
+
+    if (e.spearCooldown === undefined) e.spearCooldown = 25;
+    if (e.explosiveSpearCooldown === undefined) e.explosiveSpearCooldown = 150;
+    if (e.bounceSpearCooldown === undefined) e.bounceSpearCooldown = 80;
+    if (e.spearMeleeCooldown === undefined) e.spearMeleeCooldown = 0;
+    if (e.spearRetreatTimer === undefined) e.spearRetreatTimer = 0;
+
+    if (e.spearCooldown > 0) e.spearCooldown--;
+    if (e.explosiveSpearCooldown > 0) e.explosiveSpearCooldown--;
+    if (e.bounceSpearCooldown > 0) e.bounceSpearCooldown--;
+    if (e.spearMeleeCooldown > 0) e.spearMeleeCooldown--;
+    if (e.spearRetreatTimer > 0) e.spearRetreatTimer--;
+
+    const fishThreat = getLiveEnemyFishThreatsFor(e, 140)[0];
+    if (fishThreat && reactToEnemyFishThreat(e)) {
+        return true;
+    }
+
+    const target = pickSpearerTarget(e);
+    if (!target) return true;
+
+    e.target = target;
+    const d = getDistance(e, target);
+    const angle = Math.atan2(target.y - e.y, target.x - e.x);
+    e.angle = angle;
+
+    const meleeRange = (e.radius || 20) + (target.radius || 20) + 42;
+
+    if (d < meleeRange && e.spearMeleeCooldown <= 0) {
+        spearerMeleeShove(e, target);
+        return true;
+    }
+
+    if (e.spearRetreatTimer > 0 || d < 185) {
+        e.vx -= Math.cos(angle) * 0.68;
+        e.vy -= Math.sin(angle) * 0.68;
+
+        const side = Math.sin(frameCount * 0.075 + e.id * 3) > 0 ? 1 : -1;
+        e.vx += Math.cos(angle + Math.PI / 2 * side) * 0.20;
+        e.vy += Math.sin(angle + Math.PI / 2 * side) * 0.20;
+    } else if (d > 500) {
+        e.vx += Math.cos(angle) * 0.34;
+        e.vy += Math.sin(angle) * 0.34;
+    } else {
+        const side = Math.sin(frameCount * 0.035 + e.id * 11) > 0 ? 1 : -1;
+        e.vx += Math.cos(angle + Math.PI / 2 * side) * 0.17;
+        e.vy += Math.sin(angle + Math.PI / 2 * side) * 0.17;
+    }
+
+    if (e.spearCooldown <= 0 && d < 720) {
+        const kind = chooseSpearKind(e, target);
+
+        if (kind === 'bounce' || safeHasLineOfSight(e, target)) {
+            throwSpearProjectile(e, target, kind);
+            e.spearCooldown = kind === 'normal' ? 46 : 72;
+        }
+    }
+
+    return true;
+};
+
+(function installFishThreatAwarenessAIWrapper() {
+    if (typeof applyAI === 'function' && !applyAI.__fishThreatAware) {
+        const previousApplyAI = applyAI;
+        const wrappedApplyAI = function fishThreatAwareApplyAI(e) {
+            if (reactToEnemyFishThreat(e)) return;
+            return previousApplyAI.apply(this, arguments);
+        };
+        wrappedApplyAI.__fishThreatAware = true;
+        applyAI = wrappedApplyAI;
+    }
+
+    if (typeof FIGHTER_DATA !== 'undefined' && FIGHTER_DATA.spearer) {
+        FIGHTER_DATA.spearer.desc = 'Throws normal, explosive, and persistent bouncing spears. Shoves close enemies away with melee spear control.';
+    }
+})();
+
+
+
+/* --- FARREL POWER PATCH: SPEARER BUFF + SPIDER/BOMBMAN/MISSILE --- */
+(function farrelPowerPatch() {
+    const NEW_FIGHTER_KEYS = ['spider', 'bombman', 'missile'];
+
+    function fpDist(a, b) {
+        if (!a || !b) return 999999;
+        return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+    }
+
+    function fpAngle(from, to) {
+        return Math.atan2((to.y || 0) - (from.y || 0), (to.x || 0) - (from.x || 0));
+    }
+
+    function fpClamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function fpEnemyCandidates(unit, includeMounts = false) {
+        if (!unit || typeof entities === 'undefined') return [];
+        return entities.filter(other =>
+            other &&
+            other.hp > 0 &&
+            other.team !== unit.team &&
+            other.id !== unit.id &&
+            other.type !== 'turret' &&
+            other.type !== 'boid' &&
+            (includeMounts || other.type !== 'mammoth_mount') &&
+            !other.isStealthed &&
+            !other.isFeigning
+        );
+    }
+
+    function fpClosestEnemy(unit, maxRange = 99999) {
+        let best = null;
+        let bestD = maxRange;
+        fpEnemyCandidates(unit).forEach(enemy => {
+            const d = fpDist(unit, enemy);
+            if (d < bestD) {
+                bestD = d;
+                best = enemy;
+            }
+        });
+        return best;
+    }
+
+    function fpAvoidEdges(unit, padding = 62, force = 0.75) {
+        if (!unit) return;
+        if (unit.x < padding) unit.vx += force;
+        if (unit.x > canvas.width - padding) unit.vx -= force;
+        if (unit.y < padding) unit.vy += force;
+        if (unit.y > canvas.height - padding) unit.vy -= force;
+    }
+
+    function fpProjectileDanger(unit, p, radius = 180) {
+        if (!unit || !p || p.dead || p.team === unit.team || p.isMine) return 0;
+        if (p.type === 'fish' && p.latchedTargetId) return 0;
+        if (fpDist(unit, p) > radius) return 0;
+
+        const pvx = p.vx || 0;
+        const pvy = p.vy || 0;
+        const speed = Math.sqrt(pvx * pvx + pvy * pvy);
+        if (speed < 0.1) return 0;
+
+        const toUnitX = unit.x - p.x;
+        const toUnitY = unit.y - p.y;
+        const closing = (toUnitX * pvx + toUnitY * pvy) / (Math.sqrt(toUnitX * toUnitX + toUnitY * toUnitY) * speed || 1);
+
+        if (closing < 0.35) return 0;
+
+        let threat = speed * closing;
+        if (p.type === 'cannonball' || p.isHomingMissile) threat += 8;
+        if (p.type === 'spear') threat += 6;
+        if (p.type === 'fish') threat += 5;
+        if (p.type === 'orb' || p.type === 'fireball') threat += 5;
+        if (p.type === 'bullet' || p.type === 'arrow' || p.type === 'flaming_arrow') threat += 3;
+        return threat;
+    }
+
+    function fpIncomingProjectiles(unit, radius = 190) {
+        if (typeof projectiles === 'undefined') return [];
+        return projectiles
+            .filter(p => fpProjectileDanger(unit, p, radius) > 0)
+            .sort((a, b) => fpDist(unit, a) - fpDist(unit, b));
+    }
+
+    function fpEvadeProjectiles(unit, radius = 190, force = 0.75) {
+        const incoming = fpIncomingProjectiles(unit, radius);
+        if (incoming.length === 0) return false;
+
+        const p = incoming[0];
+        const away = Math.atan2(unit.y - p.y, unit.x - p.x);
+        const travel = Math.atan2(p.vy || 0, p.vx || 0);
+        const side = Math.sin((frameCount || 0) * 0.19 + unit.id * 37) > 0 ? 1 : -1;
+        const dodgeAngle = travel + Math.PI / 2 * side;
+
+        unit.vx += Math.cos(dodgeAngle) * force;
+        unit.vy += Math.sin(dodgeAngle) * force;
+        unit.vx += Math.cos(away) * force * 0.35;
+        unit.vy += Math.sin(away) * force * 0.35;
+        unit.angle = away;
+
+        return true;
+    }
+
+    function fpIsStrongEnoughToHurtBombman(source, amount = 0) {
+        if (!source) return amount >= 44;
+
+        const strongTypes = [
+            'bombman', 'mammoth', 'mammoth_mount', 'fight knight',
+            'devourer', 'grower', 'crux', 'hardcase'
+        ];
+
+        if (strongTypes.includes(source.type) || strongTypes.includes(source.realType)) return true;
+        if ((source.type === 'spatial' || source.type === 'spearer') && amount >= 20) return true;
+        if (source.type === 'laser' && source.laserMode === 'death') return true;
+        if (amount >= 44) return true;
+
+        return false;
+    }
+
+    function fpRegisterFighters() {
+        if (typeof FIGHTER_DATA !== 'undefined') {
+            FIGHTER_DATA.spearer = {
+                hp: 145,
+                dmg: 'Pierce+',
+                ability: 'Elite Skewer + Evasive Spearwork',
+                desc: 'Buffed skirmisher. Throws faster spears, shoves nearby enemies back, evades projectiles, and can control several unarmed fighters alone.'
+            };
+
+            FIGHTER_DATA.spider = {
+                hp: 135,
+                dmg: 'Heavy/Web',
+                ability: 'Web Pin + Precog Dodge',
+                desc: 'Telegraphs heavy strikes, dodges attacks and projectiles, blocks if too late, and fires webs that pull or pin enemies.'
+            };
+
+            FIGHTER_DATA.bombman = {
+                hp: 280,
+                dmg: 'Fatal',
+                ability: 'Bomb Body',
+                desc: 'A super-heavy bruiser. One-shots unarmed fighters and rocks, never blocks, tanks weak attacks, and only true heavy hitters meaningfully damage him.'
+            };
+
+            FIGHTER_DATA.missile = {
+                hp: 115,
+                dmg: 'Homing',
+                ability: 'Triple Missile Launcher',
+                desc: 'Keeps distance and fires up to three homing missiles that curve into enemies and detonate on impact.'
+            };
+        }
+
+        if (typeof FIGHTER_OPTIONS !== 'undefined') {
+            NEW_FIGHTER_KEYS.concat(['spearer']).forEach(type => {
+                if (!FIGHTER_OPTIONS.includes(type)) FIGHTER_OPTIONS.push(type);
+            });
+            FIGHTER_OPTIONS.sort();
+        }
+
+        if (typeof FIGHTER_VISUALS !== 'undefined') {
+            FIGHTER_VISUALS.spearer = { tag: 'SR', color: '#5f6f7a', accent: '#f5f5dc' };
+            FIGHTER_VISUALS.spider = { tag: 'SP', color: '#111111', accent: '#8e44ad' };
+            FIGHTER_VISUALS.bombman = { tag: 'BM', color: '#2d3436', accent: '#ff4757' };
+            FIGHTER_VISUALS.missile = { tag: 'MS', color: '#34495e', accent: '#ffa502' };
+        }
+    }
+
+    fpRegisterFighters();
+
+    if (typeof applyClassProps === 'function' && !applyClassProps.__farrelPowerWrapped) {
+        const previousApplyClassProps = applyClassProps;
+
+        applyClassProps = function farrelPowerApplyClassProps(fighter, type) {
+            previousApplyClassProps.apply(this, arguments);
+
+            if (!fighter) return;
+
+            if (type === 'spearer') {
+                fighter.mass = 1.45;
+                fighter.reach = 760;
+                fighter.bravery = 0.92;
+                fighter.spearCooldown = Math.min(fighter.spearCooldown || 18, 18);
+                fighter.explosiveSpearCooldown = Math.min(fighter.explosiveSpearCooldown || 95, 95);
+                fighter.bounceSpearCooldown = Math.min(fighter.bounceSpearCooldown || 65, 65);
+                fighter.spearMeleeCooldown = fighter.spearMeleeCooldown || 0;
+                fighter.spearRetreatTimer = fighter.spearRetreatTimer || 0;
+                fighter.spearEvasionTimer = fighter.spearEvasionTimer || 0;
+            }
+
+            if (type === 'spider') {
+                fighter.mass = 1.65;
+                fighter.reach = 420;
+                fighter.bravery = 0.88;
+                fighter.webCooldown = 25;
+                fighter.spiderStrikeCooldown = 0;
+                fighter.spiderDodgeCooldown = 0;
+                fighter.spiderTelegraphTimer = 0;
+                fighter.spiderTelegraphTargetId = null;
+                fighter.blockTimer = fighter.blockTimer || 0;
+                fighter.blockCooldown = fighter.blockCooldown || 0;
+                fighter.isBlocking = false;
+            }
+
+            if (type === 'bombman') {
+                fighter.mass = 4.6;
+                fighter.radius = Math.max(fighter.radius || 20, 24);
+                fighter.reach = 85;
+                fighter.bravery = 1.0;
+                fighter.bombPunchCooldown = 0;
+                fighter.bombShockwaveCooldown = 0;
+                fighter.isBlocking = false;
+                fighter.blockCooldown = 999999;
+                fighter.blockTimer = 0;
+            }
+
+            if (type === 'missile') {
+                fighter.mass = 1.2;
+                fighter.reach = 760;
+                fighter.bravery = 0.62;
+                fighter.missileCooldown = 20;
+                fighter.missileBurstLeft = 0;
+                fighter.missileBurstGap = 0;
+            }
+        };
+
+        applyClassProps.__farrelPowerWrapped = true;
+    }
+
+    if (typeof damageEntity === 'function' && !damageEntity.__farrelPowerWrapped) {
+        const previousDamageEntity = damageEntity;
+
+        damageEntity = function farrelPowerDamageEntity(victim, amount, impactX, impactY, source) {
+            if (victim && victim.hp > 0 && amount > 0) {
+                if (victim.type === 'bombman') {
+                    const strong = fpIsStrongEnoughToHurtBombman(source, amount);
+
+                    if (!strong) {
+                        if ((frameCount || 0) % 17 === 0) {
+                            spawnDamageText(victim.x, victim.y - 34, 'NO SELL', '#ff4757', true);
+                            spawnParticles(impactX || victim.x, impactY || victim.y, '#2d3436', 4);
+                        }
+
+                        amount *= 0.03;
+                        victim.vx *= 0.85;
+                        victim.vy *= 0.85;
+                    } else {
+                        amount *= 0.62;
+                        if ((frameCount || 0) % 11 === 0) {
+                            spawnDamageText(victim.x, victim.y - 34, 'ARMOR CRACK', '#ffa502', true);
+                        }
+                    }
+                }
+
+                if (victim.type === 'spider' && victim.isBlocking && !victim.trappedBy) {
+                    const incomingAngle = Math.atan2((impactY || victim.y) - victim.y, (impactX || victim.x) - victim.x);
+                    const faceDiff = angleDiffSmall(incomingAngle, victim.angle || 0);
+
+                    if (faceDiff < 1.15) {
+                        amount *= 0.28;
+                        victim.vx *= 0.85;
+                        victim.vy *= 0.85;
+                        if ((frameCount || 0) % 8 === 0) {
+                            spawnDamageText(victim.x, victim.y - 28, 'WEB BLOCK', '#8e44ad');
+                            spawnParticles(impactX || victim.x, impactY || victim.y, '#dfe6e9', 3);
+                        }
+                    }
+                }
+            }
+
+            return previousDamageEntity.call(this, victim, amount, impactX, impactY, source);
+        };
+
+        damageEntity.__farrelPowerWrapped = true;
+    }
+
+    spearerMeleeShove = function eliteSpearerMeleeShove(spearer, target) {
+        if (!spearer || !target || target.hp <= 0) return false;
+
+        const angle = fpAngle(spearer, target);
+        spearer.angle = angle;
+
+        const spearTipX = spearer.x + Math.cos(angle) * ((spearer.radius || 20) + 48);
+        const spearTipY = spearer.y + Math.sin(angle) * ((spearer.radius || 20) + 48);
+
+        const damage = target.type === 'unarmed' ? 12.5 : 8.0;
+        damageEntity(target, damage, spearTipX, spearTipY, spearer);
+
+        target.vx += Math.cos(angle) * 12.5;
+        target.vy += Math.sin(angle) * 12.5;
+        spearer.vx -= Math.cos(angle) * 7.0;
+        spearer.vy -= Math.sin(angle) * 7.0;
+
+        spearer.spearMeleeCooldown = 26;
+        spearer.spearRetreatTimer = 48;
+        spearer.spearCooldown = Math.max(spearer.spearCooldown || 0, 10);
+
+        spawnParticles(spearTipX, spearTipY, '#f5f5dc', 12);
+        spawnDamageText(target.x, target.y - 32, 'ELITE SHOVE', '#f5f5dc', true);
+        if (typeof playSound === 'function') playSound('slash', 0.5);
+
+        return true;
+    };
+
+    if (typeof throwSpearProjectile === 'function') {
+        throwSpearProjectile = function eliteThrowSpearProjectile(e, target, kind = 'normal') {
+            if (!e || !target) return false;
+
+            const lead = Math.min(28, Math.max(0, fpDist(e, target) / 35));
+            const aimX = target.x + (target.vx || 0) * lead;
+            const aimY = target.y + (target.vy || 0) * lead;
+            const angle = Math.atan2(aimY - e.y, aimX - e.x);
+
+            e.angle = angle;
+
+            const speed = kind === 'bounce' ? 17.6 : kind === 'explosive' ? 14.5 : 16.3;
+
+            projectiles.push({
+                x: e.x + Math.cos(angle) * ((e.radius || 20) + 24),
+                y: e.y + Math.sin(angle) * ((e.radius || 20) + 24),
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                team: e.team,
+                life: kind === 'bounce' ? 9999 : 128,
+                type: 'spear',
+                spearKind: kind,
+                shooterId: e.id,
+                radius: kind === 'explosive' ? 8 : 7,
+                bouncesLeft: kind === 'bounce' ? 999 : 0,
+                persistentBounce: kind === 'bounce',
+                maxSpearAge: kind === 'bounce' ? 1800 : 128,
+                spearAge: 0
+            });
+
+            spawnMuzzleFlash(e, angle, kind === 'explosive' ? 'cannon' : 'bullet');
+            spawnParticles(e.x + Math.cos(angle) * 20, e.y + Math.sin(angle) * 20, kind === 'explosive' ? '#ff7675' : (kind === 'bounce' ? '#74b9ff' : '#dfe6e9'), 7);
+
+            if (kind === 'explosive') {
+                e.explosiveSpearCooldown = 145;
+                spawnDamageText(e.x, e.y - 28, 'BOMB SPEAR', '#ff7675', true);
+            } else if (kind === 'bounce') {
+                e.bounceSpearCooldown = 105;
+                spawnDamageText(e.x, e.y - 28, 'PINBALL SPEAR', '#74b9ff', true);
+            }
+
+            if (typeof playSound === 'function') playSound('arrow', 0.55);
+            return true;
+        };
+    }
+
+    if (typeof handleSpearProjectileHit === 'function') {
+        handleSpearProjectileHit = function eliteHandleSpearProjectileHit(p, target, source) {
+            if (!p || !target || target.hp <= 0) return;
+            if (target.type === 'mammoth_mount' && source && source.type === 'mammoth') return;
+
+            const incomingAngle = Math.atan2(p.vy || 0, p.vx || 0);
+            const knockX = Math.cos(incomingAngle);
+            const knockY = Math.sin(incomingAngle);
+
+            if (typeof isFrontFacingBlock === 'function' && isFrontFacingBlock(target, p.x, p.y)) {
+                spawnParticles(p.x, p.y, '#dfe6e9', 9);
+                spawnDamageText(p.x, p.y - 18, target.type === 'knight' || target.type === 'adapto' ? 'SHIELD' : 'BLOCK', '#81ecec', true);
+                target.vx += (p.vx || 0) * 0.1;
+                target.vy += (p.vy || 0) * 0.1;
+
+                if (p.spearKind === 'bounce') {
+                    const angle = incomingAngle + Math.PI + (Math.random() - 0.5) * 0.8;
+                    const speed = Math.max(13.5, Math.sqrt((p.vx || 0) ** 2 + (p.vy || 0) ** 2));
+                    p.vx = Math.cos(angle) * speed;
+                    p.vy = Math.sin(angle) * speed;
+                    p.life = 9999;
+                    p.spearAge = (p.spearAge || 0) + 20;
+                    return;
+                }
+
+                p.dead = true;
+                return;
+            }
+
+            if (p.spearKind === 'explosive') {
+                damageEntity(target, 10, p.x, p.y, source || null);
+                target.vx += knockX * 6.0;
+                target.vy += knockY * 6.0;
+                triggerExplosion(p.x, p.y, 135, 48, p.shooterId || (source && source.id) || null);
+                p.dead = true;
+                return;
+            }
+
+            const anchor = findSpearSkewerAnchor(p, target);
+            const isNormal = !p.spearKind || p.spearKind === 'normal';
+
+            if (anchor) {
+                damageEntity(target, p.spearKind === 'bounce' ? 10 : 15, p.x, p.y, source || null);
+
+                if (isNormal) {
+                    target.vx += knockX * 8.5;
+                    target.vy += knockY * 8.5;
+                }
+
+                pinTargetWithSpear(target, p, source || null, anchor);
+            } else {
+                damageEntity(target, p.spearKind === 'bounce' ? 12 : 18, p.x, p.y, source || null);
+
+                const pushPower = isNormal ? 13.5 : 7.5;
+                target.vx += knockX * pushPower;
+                target.vy += knockY * pushPower;
+                spawnParticles(p.x, p.y, '#dfe6e9', 7);
+                if (isNormal) spawnDamageText(target.x, target.y - 25, 'SPEAR BLAST', '#f5f5dc', true);
+            }
+
+            p.dead = true;
+        };
+    }
+
+    function chooseEliteSpearKind(e, target) {
+        if (!e || !target) return 'normal';
+
+        const clusterEnemies = fpEnemyCandidates(e, true).filter(other => fpDist(other, target) < 95).length;
+        const explosiveReady = (e.explosiveSpearCooldown || 0) <= 0;
+        const bounceReady = (e.bounceSpearCooldown || 0) <= 0;
+        const hasLos = safeHasLineOfSight(e, target);
+        const anchor = findSpearSkewerAnchor({ x: e.x, y: e.y, vx: target.x - e.x, vy: target.y - e.y }, target);
+
+        if (explosiveReady && clusterEnemies >= 2) return 'explosive';
+        if (bounceReady && (!hasLos || anchor || Math.random() < 0.20)) return 'bounce';
+        if (explosiveReady && Math.random() < 0.10) return 'explosive';
+        return 'normal';
+    }
+
+    handleSpearerAI = function eliteHandleSpearerAI(e) {
+        if (!e || e.type !== 'spearer' || e.hp <= 0 || isSetupPhase || e.isDancing) return false;
+
+        if (e.spearCooldown === undefined) e.spearCooldown = 14;
+        if (e.explosiveSpearCooldown === undefined) e.explosiveSpearCooldown = 95;
+        if (e.bounceSpearCooldown === undefined) e.bounceSpearCooldown = 65;
+        if (e.spearMeleeCooldown === undefined) e.spearMeleeCooldown = 0;
+        if (e.spearRetreatTimer === undefined) e.spearRetreatTimer = 0;
+
+        if (e.spearCooldown > 0) e.spearCooldown--;
+        if (e.explosiveSpearCooldown > 0) e.explosiveSpearCooldown--;
+        if (e.bounceSpearCooldown > 0) e.bounceSpearCooldown--;
+        if (e.spearMeleeCooldown > 0) e.spearMeleeCooldown--;
+        if (e.spearRetreatTimer > 0) e.spearRetreatTimer--;
+
+        const projectileEvaded = fpEvadeProjectiles(e, 210, 0.95);
+
+        const fishThreat = typeof getLiveEnemyFishThreatsFor === 'function' ? getLiveEnemyFishThreatsFor(e, 145)[0] : null;
+        if (fishThreat && typeof reactToEnemyFishThreat === 'function' && reactToEnemyFishThreat(e)) return true;
+
+        const enemies = fpEnemyCandidates(e);
+        if (enemies.length === 0) return true;
+
+        let target = null;
+        let bestScore = -Infinity;
+
+        enemies.forEach(enemy => {
+            const d = fpDist(e, enemy);
+            if (d > 790) return;
+
+            const anchor = findSpearSkewerAnchor({ x: e.x, y: e.y, vx: enemy.x - e.x, vy: enemy.y - e.y }, enemy);
+            const nearbyEnemies = enemies.filter(other => other.id !== enemy.id && fpDist(enemy, other) < 95).length;
+
+            let score = 900 - d;
+            if (enemy.type === 'unarmed') score += 180;
+            if (anchor) score += 260;
+            if (nearbyEnemies >= 1) score += 100;
+            if (nearbyEnemies >= 2) score += 140;
+            if (safeHasLineOfSight(e, enemy)) score += 80;
+            if (enemy.spearPinnedTimer > 0) score -= 220;
+
+            if (score > bestScore) {
+                bestScore = score;
+                target = enemy;
+            }
+        });
+
+        if (!target) return true;
+
+        e.target = target;
+        const d = fpDist(e, target);
+        const angle = fpAngle(e, target);
+        e.angle = angle;
+
+        const meleeRange = (e.radius || 20) + (target.radius || 20) + 52;
+        if (d < meleeRange && e.spearMeleeCooldown <= 0) {
+            spearerMeleeShove(e, target);
+            return true;
+        }
+
+        const closeEnemies = enemies.filter(enemy => fpDist(e, enemy) < 190).length;
+        const desiredGap = closeEnemies >= 2 ? 390 : 310;
+
+        if (e.spearRetreatTimer > 0 || d < desiredGap) {
+            e.vx -= Math.cos(angle) * (closeEnemies >= 2 ? 1.05 : 0.82);
+            e.vy -= Math.sin(angle) * (closeEnemies >= 2 ? 1.05 : 0.82);
+
+            const side = Math.sin((frameCount || 0) * 0.085 + e.id * 7) > 0 ? 1 : -1;
+            e.vx += Math.cos(angle + Math.PI / 2 * side) * 0.36;
+            e.vy += Math.sin(angle + Math.PI / 2 * side) * 0.36;
+        } else if (d > 610) {
+            e.vx += Math.cos(angle) * 0.44;
+            e.vy += Math.sin(angle) * 0.44;
+        } else {
+            const side = Math.sin((frameCount || 0) * 0.045 + e.id * 11) > 0 ? 1 : -1;
+            e.vx += Math.cos(angle + Math.PI / 2 * side) * 0.25;
+            e.vy += Math.sin(angle + Math.PI / 2 * side) * 0.25;
+        }
+
+        fpAvoidEdges(e, 78, 1.05);
+
+        if (projectileEvaded && Math.random() < 0.35) {
+            e.spearCooldown = Math.min(e.spearCooldown || 0, 12);
+        }
+
+        if (e.spearCooldown <= 0 && d < 780) {
+            const kind = chooseEliteSpearKind(e, target);
+
+            if (kind === 'bounce' || safeHasLineOfSight(e, target)) {
+                throwSpearProjectile(e, target, kind);
+                e.spearCooldown = kind === 'normal' ? 24 : (kind === 'bounce' ? 48 : 56);
+            }
+        }
+
+        return true;
+    };
+
+    function spawnSpiderWeb(spider, target, kind = 'pull') {
+        if (!spider || !target) return false;
+
+        const lead = kind === 'pin' ? 10 : 18;
+        const aimX = target.x + (target.vx || 0) * lead;
+        const aimY = target.y + (target.vy || 0) * lead;
+        const angle = Math.atan2(aimY - spider.y, aimX - spider.x);
+        const speed = kind === 'pin' ? 12.5 : 13.5;
+
+        spider.angle = angle;
+
+        projectiles.push({
+            x: spider.x + Math.cos(angle) * ((spider.radius || 20) + 14),
+            y: spider.y + Math.sin(angle) * ((spider.radius || 20) + 14),
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            team: spider.team,
+            life: 70,
+            type: 'spider_web',
+            isSpiderWeb: true,
+            webKind: kind,
+            shooterId: spider.id,
+            radius: 9,
+            trail: []
+        });
+
+        spawnParticles(spider.x + Math.cos(angle) * 18, spider.y + Math.sin(angle) * 18, '#dfe6e9', 6);
+        spawnDamageText(spider.x, spider.y - 28, kind === 'pin' ? 'PIN WEB' : 'PULL WEB', '#8e44ad');
+        if (typeof playSound === 'function') playSound('shot', 0.35);
+        return true;
+    }
+
+    function applySpiderWebHit(web, target, spider) {
+        if (!web || !target || target.hp <= 0) return false;
+
+        web.dead = true;
+
+        target.webbedBy = spider ? spider.id : web.shooterId;
+        target.webTimer = web.webKind === 'pin' ? 115 : 92;
+        target.webKind = web.webKind;
+        target.webPullStrength = web.webKind === 'pull' ? 1.0 : 0;
+        target.frozen = Math.max(target.frozen || 0, web.webKind === 'pin' ? 35 : 0);
+
+        if (web.webKind === 'pin') {
+            target.vx *= 0.1;
+            target.vy *= 0.1;
+            damageEntity(target, 7, web.x, web.y, spider || null);
+            spawnDamageText(target.x, target.y - 28, 'WEB PIN', '#8e44ad', true);
+        } else {
+            const pullAngle = fpAngle(target, spider || web);
+            target.vx += Math.cos(pullAngle) * 10.5;
+            target.vy += Math.sin(pullAngle) * 10.5;
+            target.frozen = 0;
+            damageEntity(target, 5, web.x, web.y, spider || null);
+            spawnDamageText(target.x, target.y - 28, 'WEB PULL', '#8e44ad', true);
+        }
+
+        spawnParticles(target.x, target.y, '#dfe6e9', 12);
+        if (typeof playSound === 'function') playSound('trap', 0.35);
+        return true;
+    }
+
+    function updateSpiderWebbedTargets() {
+        entities.forEach(ent => {
+            if (!ent || !ent.webTimer || ent.webTimer <= 0) return;
+
+            ent.webTimer--;
+
+            const spider = entities.find(s => s && s.id === ent.webbedBy && s.hp > 0);
+
+            if (spider && ent.webKind === 'pull') {
+                // Pull webs should drag the target, not freeze them in place.
+                ent.frozen = 0;
+                const angle = fpAngle(ent, spider);
+                const d = fpDist(ent, spider);
+                const pull = Math.max(0.55, Math.min(1.85, d / 155));
+                ent.vx += Math.cos(angle) * pull;
+                ent.vy += Math.sin(angle) * pull;
+
+                // Direct tether tug keeps it visible/obvious even with friction and collisions.
+                ent.x += Math.cos(angle) * 0.85;
+                ent.y += Math.sin(angle) * 0.85;
+            } else {
+                ent.frozen = Math.max(ent.frozen || 0, 3);
+                ent.vx *= 0.55;
+                ent.vy *= 0.55;
+            }
+
+            if ((frameCount || 0) % 16 === 0) {
+                const source = spider || null;
+                damageEntity(ent, ent.webKind === 'pin' ? 1.4 : 0.8, ent.x, ent.y, source);
+                spawnParticles(ent.x, ent.y, '#dfe6e9', 2);
+            }
+
+            if (ent.webTimer <= 0 || !spider) {
+                ent.webTimer = 0;
+                ent.webbedBy = null;
+                ent.webKind = null;
+                spawnParticles(ent.x, ent.y, '#dfe6e9', 5);
+            }
+        });
+    }
+
+    function spiderHeavyStrike(spider, target) {
+        if (!spider || !target || target.hp <= 0) return false;
+
+        const angle = fpAngle(spider, target);
+        spider.angle = angle;
+
+        damageEntity(target, target.webTimer > 0 ? 27 : 21, target.x, target.y, spider);
+        target.vx += Math.cos(angle) * 9.5;
+        target.vy += Math.sin(angle) * 9.5;
+        spider.vx -= Math.cos(angle) * 2.5;
+        spider.vy -= Math.sin(angle) * 2.5;
+
+        spider.spiderStrikeCooldown = 52;
+        spider.spiderTelegraphTimer = 0;
+        spider.spiderTelegraphTargetId = null;
+
+        spawnParticles(target.x, target.y, '#111111', 12);
+        spawnDamageText(target.x, target.y - 34, 'VENOM SLAM', '#8e44ad', true);
+        if (typeof playSound === 'function') playSound('heavy_hit', 0.55);
+
+        return true;
+    }
+
+    function handleSpiderAI(spider) {
+        if (!spider || spider.type !== 'spider' || spider.hp <= 0 || isSetupPhase || spider.isDancing) return false;
+
+        if (spider.webCooldown === undefined) spider.webCooldown = 20;
+        if (spider.spiderStrikeCooldown === undefined) spider.spiderStrikeCooldown = 0;
+        if (spider.spiderDodgeCooldown === undefined) spider.spiderDodgeCooldown = 0;
+        if (spider.spiderTelegraphTimer === undefined) spider.spiderTelegraphTimer = 0;
+
+        if (spider.webCooldown > 0) spider.webCooldown--;
+        if (spider.spiderStrikeCooldown > 0) spider.spiderStrikeCooldown--;
+        if (spider.spiderDodgeCooldown > 0) spider.spiderDodgeCooldown--;
+        if (spider.blockCooldown > 0) spider.blockCooldown--;
+
+        if (spider.isBlocking) {
+            spider.blockTimer--;
+            spider.vx *= 0.84;
+            spider.vy *= 0.84;
+            if (spider.blockTimer <= 0) {
+                spider.isBlocking = false;
+                spider.blockCooldown = 45;
+            }
+            return true;
+        }
+
+        const incoming = fpIncomingProjectiles(spider, 175);
+        if (incoming.length > 0) {
+            const d = fpDist(spider, incoming[0]);
+
+            if (spider.spiderDodgeCooldown <= 0 && d < 155) {
+                fpEvadeProjectiles(spider, 185, 1.28);
+                spider.spiderDodgeCooldown = 18;
+                spawnDamageText(spider.x, spider.y - 30, 'SPIDER DODGE', '#8e44ad');
+                return true;
+            }
+
+            if (d < 95 && (spider.blockCooldown || 0) <= 0) {
+                spider.angle = Math.atan2(incoming[0].y - spider.y, incoming[0].x - spider.x);
+                spider.isBlocking = true;
+                spider.blockTimer = 24;
+                spawnDamageText(spider.x, spider.y - 30, 'WEB GUARD', '#dfe6e9');
+                return true;
+            }
+        }
+
+        const target = fpClosestEnemy(spider, 680);
+        if (!target) return true;
+
+        spider.target = target;
+        const d = fpDist(spider, target);
+        const angle = fpAngle(spider, target);
+        spider.angle = angle;
+
+        if (spider.spiderTelegraphTimer > 0) {
+            spider.spiderTelegraphTimer--;
+            spider.vx *= 0.72;
+            spider.vy *= 0.72;
+
+            const lockedTarget = entities.find(e => e && e.id === spider.spiderTelegraphTargetId && e.hp > 0) || target;
+            spider.angle = fpAngle(spider, lockedTarget);
+            spawnParticles(spider.x + Math.cos(spider.angle) * (spider.radius + 10), spider.y + Math.sin(spider.angle) * (spider.radius + 10), '#8e44ad', 1);
+
+            if (spider.spiderTelegraphTimer <= 0 && fpDist(spider, lockedTarget) < 92) {
+                spiderHeavyStrike(spider, lockedTarget);
+            }
+
+            return true;
+        }
+
+        if (spider.webCooldown <= 0 && d < 440 && safeHasLineOfSight(spider, target)) {
+            const kind = (d > 190 || target.vx * target.vx + target.vy * target.vy > 18) ? 'pull' : 'pin';
+            spawnSpiderWeb(spider, target, kind);
+            spider.webCooldown = kind === 'pin' ? 95 : 72;
+        }
+
+        if (d < 88 && spider.spiderStrikeCooldown <= 0) {
+            spider.spiderTelegraphTimer = 16;
+            spider.spiderTelegraphTargetId = target.id;
+            spawnDamageText(spider.x, spider.y - 30, 'TELEGRAPH', '#8e44ad', true);
+            return true;
+        }
+
+        if (d > 245) {
+            spider.vx += Math.cos(angle) * 0.58;
+            spider.vy += Math.sin(angle) * 0.58;
+        } else if (d < 128) {
+            spider.vx -= Math.cos(angle) * 0.46;
+            spider.vy -= Math.sin(angle) * 0.46;
+        } else {
+            const side = Math.sin((frameCount || 0) * 0.055 + spider.id * 6) > 0 ? 1 : -1;
+            spider.vx += Math.cos(angle + Math.PI / 2 * side) * 0.35;
+            spider.vy += Math.sin(angle + Math.PI / 2 * side) * 0.35;
+        }
+
+        fpAvoidEdges(spider, 55, 0.75);
+
+        return true;
+    }
+
+    function bombmanSmash(bombman, target) {
+        if (!bombman || !target || target.hp <= 0) return false;
+
+        const angle = fpAngle(bombman, target);
+        bombman.angle = angle;
+
+        const damage =
+            target.type === 'unarmed' ? 165 :
+            target.type === 'spider' ? 85 :
+            target.type === 'bombman' ? 48 :
+            70;
+
+        damageEntity(target, damage, target.x, target.y, bombman);
+        target.vx += Math.cos(angle) * 16;
+        target.vy += Math.sin(angle) * 16;
+
+        bombman.bombPunchCooldown = 34;
+        bombman.bombShockwaveCooldown = Math.max(bombman.bombShockwaveCooldown || 0, 16);
+
+        spawnParticles(target.x, target.y, '#ff4757', 24);
+        spawnParticles(target.x, target.y, '#2d3436', 12);
+        spawnDamageText(target.x, target.y - 42, target.type === 'unarmed' ? 'ONE SHOT' : 'BOMB PUNCH', '#ff4757', true);
+        registerBigMoment(target.x, target.y, 'BOMB PUNCH', 'boom');
+        triggerSlowMoBigHit(20);
+        if (typeof playSound === 'function') playSound('explosion_small', 0.8);
+
+        return true;
+    }
+
+    function bombmanBreakObjects(bombman) {
+        if (!bombman || typeof obstacles === 'undefined') return;
+
+        obstacles.forEach(o => {
+            if (!o || o.hp <= 0) return;
+            const d = fpDist(bombman, o);
+            if (d < (bombman.radius || 24) + (o.radius || 20) + 34) {
+                if (o.type === 'rock' || o.type === 'barrel') {
+                    o.hp = 0;
+                    spawnParticles(o.x, o.y, o.type === 'barrel' ? '#ff7675' : '#636e72', 18);
+                    spawnDamageText(o.x, o.y - 24, o.type === 'rock' ? 'ROCK BROKE' : 'BARREL BROKE', '#ff4757', true);
+                    if (o.type === 'barrel') triggerExplosion(o.x, o.y, 120, 42, bombman.id);
+                } else {
+                    o.hp -= 18;
+                }
+            }
+        });
+    }
+
+    function fpFindDuplicatorOriginalTarget(bombman) {
+        if (!bombman || typeof entities === 'undefined') return null;
+
+        // If Bombman sees a duplicator swarm, he knows to kill the real/original body first.
+        const originals = entities
+            .filter(e =>
+                e &&
+                e.hp > 0 &&
+                e.team !== bombman.team &&
+                e.type === 'duplicator' &&
+                (e.isOriginal || e.isKing || !e.parentId)
+            )
+            .sort((a, b) => fpDist(bombman, a) - fpDist(bombman, b));
+
+        if (originals.length > 0) return originals[0];
+
+        const clone = entities.find(e =>
+            e &&
+            e.hp > 0 &&
+            e.team !== bombman.team &&
+            e.type === 'duplicator' &&
+            e.parentId
+        );
+
+        if (clone) {
+            const parent = entities.find(e => e && e.hp > 0 && e.id === clone.parentId);
+            if (parent) return parent;
+        }
+
+        return null;
+    }
+
+    function handleBombmanAI(bombman) {
+        if (!bombman || bombman.type !== 'bombman' || bombman.hp <= 0 || isSetupPhase || bombman.isDancing) return false;
+
+        bombman.isBlocking = false;
+        bombman.blockTimer = 0;
+
+        if (bombman.bombPunchCooldown === undefined) bombman.bombPunchCooldown = 0;
+        if (bombman.bombShockwaveCooldown === undefined) bombman.bombShockwaveCooldown = 0;
+
+        if (bombman.bombPunchCooldown > 0) bombman.bombPunchCooldown--;
+        if (bombman.bombShockwaveCooldown > 0) bombman.bombShockwaveCooldown--;
+
+        const target = fpFindDuplicatorOriginalTarget(bombman) || fpClosestEnemy(bombman, 9999);
+        if (!target) return true;
+
+        bombman.target = target;
+        const d = fpDist(bombman, target);
+        const angle = fpAngle(bombman, target);
+        bombman.angle = angle;
+
+        // Bombman is faster than most but heavy: decisive forward pressure.
+        bombman.vx += Math.cos(angle) * 0.62;
+        bombman.vy += Math.sin(angle) * 0.62;
+
+        if (d < (bombman.radius || 24) + (target.radius || 20) + 28 && bombman.bombPunchCooldown <= 0) {
+            bombmanSmash(bombman, target);
+        }
+
+        if (bombman.bombShockwaveCooldown <= 0 && d < 95) {
+            fpEnemyCandidates(bombman, true).forEach(enemy => {
+                const ed = fpDist(bombman, enemy);
+                if (ed < 95) {
+                    const ea = fpAngle(bombman, enemy);
+                    damageEntity(enemy, enemy.type === 'unarmed' ? 40 : 18, enemy.x, enemy.y, bombman);
+                    enemy.vx += Math.cos(ea) * 7;
+                    enemy.vy += Math.sin(ea) * 7;
+                }
+            });
+
+            bombman.bombShockwaveCooldown = 62;
+            spawnParticles(bombman.x, bombman.y, '#ff4757', 18);
+            if (typeof playSound === 'function') playSound('explosion_small', 0.55);
+        }
+
+        bombmanBreakObjects(bombman);
+        fpAvoidEdges(bombman, 42, 0.52);
+        return true;
+    }
+
+    function spawnHomingMissile(missileFighter, target) {
+        if (!missileFighter || !target) return false;
+
+        const angle = fpAngle(missileFighter, target);
+        const speed = 7.8;
+
+        missileFighter.angle = angle;
+
+        projectiles.push({
+            x: missileFighter.x + Math.cos(angle) * ((missileFighter.radius || 20) + 18),
+            y: missileFighter.y + Math.sin(angle) * ((missileFighter.radius || 20) + 18),
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            team: missileFighter.team,
+            life: 250,
+            type: 'cannonball',
+            isHomingMissile: true,
+            targetId: target.id,
+            shooterId: missileFighter.id,
+            radius: 13,
+            trail: [],
+            missileTurnRate: 0.085
+        });
+
+        spawnMuzzleFlash(missileFighter, angle, 'cannon');
+        spawnDamageText(missileFighter.x, missileFighter.y - 28, 'MISSILE', '#ffa502', true);
+        if (typeof playSound === 'function') playSound('cannon', 0.45);
+
+        return true;
+    }
+
+    function updateHomingMissilesPre() {
+        if (typeof projectiles === 'undefined') return;
+
+        projectiles.forEach(p => {
+            if (!p || p.dead || !p.isHomingMissile) return;
+
+            if (!p.trail) p.trail = [];
+            p.trail.unshift({ x: p.x, y: p.y });
+            if (p.trail.length > 16) p.trail.pop();
+
+            let target = p.targetId ? entities.find(e => e && e.id === p.targetId && e.hp > 0) : null;
+
+            if (!target) {
+                target = entities
+                    .filter(e => e && e.team !== p.team && e.hp > 0 && e.type !== 'turret' && e.type !== 'boid' && e.type !== 'mammoth_mount')
+                    .sort((a, b) => fpDist(p, a) - fpDist(p, b))[0];
+
+                if (target) p.targetId = target.id;
+            }
+
+            if (!target) return;
+
+            const desired = fpAngle(p, target);
+            const current = Math.atan2(p.vy || 0, p.vx || 0);
+            let diff = desired - current;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+
+            const turn = p.missileTurnRate || 0.085;
+            const nextAngle = current + fpClamp(diff, -turn, turn);
+            const speed = Math.min(12.2, Math.max(7.8, Math.sqrt((p.vx || 0) ** 2 + (p.vy || 0) ** 2) + 0.025));
+
+            p.vx = Math.cos(nextAngle) * speed;
+            p.vy = Math.sin(nextAngle) * speed;
+        });
+    }
+
+    function handleMissileAI(missileFighter) {
+        if (!missileFighter || missileFighter.type !== 'missile' || missileFighter.hp <= 0 || isSetupPhase || missileFighter.isDancing) return false;
+
+        if (missileFighter.missileCooldown === undefined) missileFighter.missileCooldown = 20;
+        if (missileFighter.missileBurstLeft === undefined) missileFighter.missileBurstLeft = 0;
+        if (missileFighter.missileBurstGap === undefined) missileFighter.missileBurstGap = 0;
+
+        if (missileFighter.missileCooldown > 0) missileFighter.missileCooldown--;
+        if (missileFighter.missileBurstGap > 0) missileFighter.missileBurstGap--;
+
+        fpEvadeProjectiles(missileFighter, 160, 0.65);
+
+        const target = fpClosestEnemy(missileFighter, 820);
+        if (!target) return true;
+
+        missileFighter.target = target;
+        const d = fpDist(missileFighter, target);
+        const angle = fpAngle(missileFighter, target);
+        missileFighter.angle = angle;
+
+        if (d < 260) {
+            missileFighter.vx -= Math.cos(angle) * 0.62;
+            missileFighter.vy -= Math.sin(angle) * 0.62;
+        } else if (d > 610) {
+            missileFighter.vx += Math.cos(angle) * 0.36;
+            missileFighter.vy += Math.sin(angle) * 0.36;
+        } else {
+            const side = Math.sin((frameCount || 0) * 0.048 + missileFighter.id * 5) > 0 ? 1 : -1;
+            missileFighter.vx += Math.cos(angle + Math.PI / 2 * side) * 0.22;
+            missileFighter.vy += Math.sin(angle + Math.PI / 2 * side) * 0.22;
+        }
+
+        fpAvoidEdges(missileFighter, 62, 0.82);
+
+        const activeOwnedMissiles = projectiles.filter(p =>
+            p &&
+            !p.dead &&
+            p.isHomingMissile &&
+            p.shooterId === missileFighter.id
+        ).length;
+
+        if (missileFighter.missileCooldown <= 0 && activeOwnedMissiles < 3 && d < 800) {
+            missileFighter.missileBurstLeft = Math.min(3 - activeOwnedMissiles, 3);
+            missileFighter.missileCooldown = 150;
+            missileFighter.missileBurstGap = 0;
+        }
+
+        if (missileFighter.missileBurstLeft > 0 && missileFighter.missileBurstGap <= 0) {
+            if (spawnHomingMissile(missileFighter, target)) {
+                missileFighter.missileBurstLeft--;
+                missileFighter.missileBurstGap = 16;
+            }
+        }
+
+        return true;
+    }
+
+    function updateSpiderWebProjectilesPre() {
+        if (typeof projectiles === 'undefined') return;
+
+        projectiles.forEach(p => {
+            if (!p || p.dead || !p.isSpiderWeb) return;
+
+            if (!p.trail) p.trail = [];
+            p.trail.unshift({ x: p.x, y: p.y });
+            if (p.trail.length > 12) p.trail.pop();
+
+            const spider = entities.find(e => e && e.id === p.shooterId && e.hp > 0);
+            const targets = fpEnemyCandidates({ team: p.team, id: -1, x: p.x, y: p.y }, true)
+                .filter(e => fpDist(p, e) < (e.radius || 20) + (p.radius || 9) + 2);
+
+            if (targets.length > 0) {
+                applySpiderWebHit(p, targets[0], spider || null);
+            }
+        });
+    }
+
+    function drawFarrelPowerOverlays() {
+        if (typeof ctx === 'undefined') return;
+
+        ctx.save();
+
+        // Webbed connection lines.
+        entities.forEach(ent => {
+            if (!ent || !ent.webTimer || ent.webTimer <= 0) return;
+
+            const spider = entities.find(s => s && s.id === ent.webbedBy && s.hp > 0);
+            ctx.strokeStyle = 'rgba(223, 230, 233, 0.72)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+
+            if (spider) {
+                ctx.moveTo(spider.x, spider.y);
+                ctx.lineTo(ent.x, ent.y);
+            } else {
+                ctx.arc(ent.x, ent.y, (ent.radius || 20) + 14, 0, Math.PI * 2);
+            }
+
+            ctx.stroke();
+            ctx.setLineDash([]);
+        });
+
+        // Spider webs and missile trails/projectile bodies.
+        projectiles.forEach(p => {
+            if (!p || p.dead) return;
+
+            if (p.isSpiderWeb) {
+                if (p.trail && p.trail.length > 1) {
+                    ctx.strokeStyle = 'rgba(223,230,233,0.65)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    p.trail.forEach(t => ctx.lineTo(t.x, t.y));
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = '#dfe6e9';
+                ctx.strokeStyle = '#8e44ad';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 6 + Math.sin((frameCount || 0) * 0.25) * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            if (p.isHomingMissile) {
+                if (p.trail && p.trail.length > 1) {
+                    ctx.strokeStyle = 'rgba(255, 165, 2, 0.42)';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    p.trail.forEach(t => ctx.lineTo(t.x, t.y));
+                    ctx.stroke();
+                }
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(Math.atan2(p.vy || 0, p.vx || 0));
+                ctx.fillStyle = '#34495e';
+                ctx.strokeStyle = '#111';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(14, 0);
+                ctx.lineTo(-10, -7);
+                ctx.lineTo(-7, 0);
+                ctx.lineTo(-10, 7);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffa502';
+                ctx.beginPath();
+                ctx.moveTo(-10, -5);
+                ctx.lineTo(-20, 0);
+                ctx.lineTo(-10, 5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+        });
+
+        // Fighter-specific readable battlefield accessories.
+        entities.forEach(e => {
+            if (!e || e.hp <= 0) return;
+            if (!NEW_FIGHTER_KEYS.concat(['spearer']).includes(e.type)) return;
+
+            ctx.save();
+            ctx.translate(e.x, e.y);
+            ctx.rotate(e.angle || 0);
+
+            if (e.type === 'spider') {
+                const r = e.radius || 20;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                // Eight readable legs, angled around the body.
+                ctx.strokeStyle = '#111';
+                ctx.lineWidth = 4;
+                const legPairs = [
+                    [-7, -13, -31, -31, -45, -25],
+                    [ 4, -12,  28, -30,  43, -22],
+                    [-10, -4, -36, -10, -48,   3],
+                    [ 10, -4,  36, -10,  48,   3],
+                    [-10,  5, -35,  13, -45,  28],
+                    [ 10,  5,  35,  13,  45,  28],
+                    [ -5, 13, -22,  34, -16,  48],
+                    [  5, 13,  22,  34,  16,  48]
+                ];
+
+                legPairs.forEach(points => {
+                    ctx.beginPath();
+                    ctx.moveTo(points[0], points[1]);
+                    ctx.lineTo(points[2], points[3]);
+                    ctx.lineTo(points[4], points[5]);
+                    ctx.stroke();
+                });
+
+                // Main body shine and web-sense ring.
+                ctx.fillStyle = 'rgba(142, 68, 173, 0.28)';
+                ctx.beginPath();
+                ctx.arc(0, 0, r + 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = e.isBlocking ? '#dfe6e9' : '#8e44ad';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, r + 8, -0.9, 0.9);
+                ctx.stroke();
+
+                // Eyes.
+                ctx.fillStyle = '#f5f6fa';
+                ctx.beginPath();
+                ctx.arc(8, -5, 3.5, 0, Math.PI * 2);
+                ctx.arc(8, 5, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                if ((e.spiderTelegraphTimer || 0) > 0) {
+                    ctx.strokeStyle = '#ff7675';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(r + 46, 0);
+                    ctx.stroke();
+
+                    ctx.strokeStyle = 'rgba(255, 118, 117, 0.35)';
+                    ctx.lineWidth = 12;
+                    ctx.beginPath();
+                    ctx.moveTo(r, 0);
+                    ctx.lineTo(r + 52, 0);
+                    ctx.stroke();
+                }
+            }
+
+            if (e.type === 'bombman') {
+                ctx.strokeStyle = '#ff4757';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(0, 0, (e.radius || 24) + 7 + Math.sin((frameCount || 0) * 0.22) * 2, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.strokeStyle = '#2d3436';
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.moveTo(-5, -(e.radius || 24) - 3);
+                ctx.quadraticCurveTo(0, -(e.radius || 24) - 22, 12, -(e.radius || 24) - 18);
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffa502';
+                ctx.beginPath();
+                ctx.arc(16, -(e.radius || 24) - 18, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (e.type === 'missile') {
+                ctx.fillStyle = '#2d3436';
+                ctx.strokeStyle = '#111';
+                ctx.lineWidth = 2;
+                ctx.fillRect(8, -8, 38, 16);
+                ctx.strokeRect(8, -8, 38, 16);
+
+                ctx.fillStyle = '#ffa502';
+                ctx.beginPath();
+                ctx.arc(48, 0, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#dfe6e9';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-5, -16);
+                ctx.lineTo(5, -25);
+                ctx.lineTo(15, -16);
+                ctx.stroke();
+            }
+
+            if (e.type === 'spearer') {
+                ctx.strokeStyle = '#f5f5dc';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, (e.radius || 20) + 11, -0.8, 0.8);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        });
+
+        ctx.restore();
+    }
+
+    if (typeof applyAI === 'function' && !applyAI.__farrelPowerWrapped) {
+        const previousApplyAI = applyAI;
+
+        applyAI = function farrelPowerApplyAI(e) {
+            if (handleSpearerAI(e)) return;
+            if (handleSpiderAI(e)) return;
+            if (handleBombmanAI(e)) return;
+            if (handleMissileAI(e)) return;
+            return previousApplyAI.apply(this, arguments);
+        };
+
+        applyAI.__farrelPowerWrapped = true;
+    }
+
+    if (typeof update === 'function' && !update.__farrelPowerWrapped) {
+        const previousUpdate = update;
+
+        update = function farrelPowerUpdate() {
+            updateHomingMissilesPre();
+            updateSpiderWebProjectilesPre();
+            updateSpiderWebbedTargets();
+
+            const result = previousUpdate.apply(this, arguments);
+
+            updateSpiderWebProjectilesPre();
+            updateSpiderWebbedTargets();
+            return result;
+        };
+
+        update.__farrelPowerWrapped = true;
+    }
+
+    if (typeof draw === 'function' && !draw.__farrelPowerWrapped) {
+        const previousDraw = draw;
+
+        draw = function farrelPowerDraw() {
+            const result = previousDraw.apply(this, arguments);
+
+            // Draw Farrel overlays in WORLD SPACE, not screen space.
+            // This fixes spider legs/webs and Bombman's fuse drifting away when the camera follows/zooms.
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(camera.zoom, camera.zoom);
+            ctx.translate(-camera.x, -camera.y);
+            drawFarrelPowerOverlays();
+            ctx.restore();
+
+            return result;
+        };
+
+        draw.__farrelPowerWrapped = true;
+    }
+
+    // Refresh modern dropdowns/previews after adding new options.
+    window.addEventListener('DOMContentLoaded', () => {
+        fpRegisterFighters();
+        if (typeof updateSquadUI === 'function') {
+            setTimeout(() => updateSquadUI(), 0);
+        }
+    });
+})();
+
+
+
+
+/* --- FARREL FINAL RUNTIME PATCH: reliable controls toggle + resizing --- */
+(function farrelFinalRuntimePatch() {
+    const controls = document.getElementById('controlsPanel');
+    const toggleBtn = document.getElementById('toggleControlsBtn');
+    const handle = document.getElementById('controlResizeHandle');
+
+    if (toggleBtn && controls && !toggleBtn.__farrelFinalToggle) {
+        toggleBtn.__farrelFinalToggle = true;
+        window.controlsVisible = controls.style.display !== 'none';
+
+        window.toggleControls = function farrelReliableToggleControls() {
+            window.controlsVisible = !window.controlsVisible;
+
+            if (window.controlsVisible) {
+                controls.style.setProperty('display', 'flex', 'important');
+                toggleBtn.innerHTML = 'Hide Controls &#9650;';
+                toggleBtn.style.backgroundColor = '#555';
+            } else {
+                controls.style.setProperty('display', 'none', 'important');
+                toggleBtn.innerHTML = 'Show Controls &#9660;';
+                toggleBtn.style.backgroundColor = '#2d3436';
+            }
+        };
+    }
+
+    if (controls && handle && !handle.__farrelFinalResize) {
+        handle.__farrelFinalResize = true;
+
+        const setHeight = h => {
+            const next = Math.max(92, Math.min(window.innerHeight * 0.72, Number(h) || 180));
+            document.documentElement.style.setProperty('--control-panel-height', `${next}px`);
+            try { localStorage.setItem('ballBattleControlPanelHeight', String(Math.round(next))); } catch (err) {}
+        };
+
+        try {
+            const saved = Number(localStorage.getItem('ballBattleControlPanelHeight'));
+            if (saved) setHeight(saved);
+        } catch (err) {}
+
+        const onMove = ev => {
+            if (!document.body.classList.contains('is-resizing-controls')) return;
+            const rect = controls.getBoundingClientRect();
+            setHeight((ev.clientY || 0) - rect.top);
+            ev.preventDefault();
+        };
+
+        const onUp = () => {
+            document.body.classList.remove('is-resizing-controls');
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+        };
+
+        handle.addEventListener('pointerdown', ev => {
+            document.body.classList.add('is-resizing-controls');
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+            ev.preventDefault();
+        });
+    }
+})();
+
+
+/* --- FARREL SQUAD TAB NO-STACK + RESIZE HANDLE FLOW PATCH --- */
+(function farrelSquadNoStackPatch() {
+    function keepResizeHandleAsPanelFooter() {
+        const panel = document.getElementById('controlsPanel');
+        const handle = document.getElementById('controlResizeHandle');
+        if (!panel || !handle) return;
+
+        // Keep it as the last flex item so it sits after the current tab area, not absolutely over cards.
+        if (handle.parentElement !== panel || panel.lastElementChild !== handle) {
+            panel.appendChild(handle);
+        }
+    }
+
+    function normalizeSquadCardsNoStack() {
+        document.querySelectorAll('#row-2 .fighter-card').forEach(card => {
+            const actions = card.querySelector('.fighter-card-actions');
+            const top = card.querySelector('.fighter-card-top');
+            const select = card.querySelector('.fighter-select-wrap');
+            if (actions) {
+                actions.querySelectorAll('button').forEach(btn => {
+                    btn.style.position = 'static';
+                    btn.style.transform = 'none';
+                });
+            }
+            if (top) top.style.minHeight = '34px';
+            if (select) select.style.position = 'relative';
+        });
+        keepResizeHandleAsPanelFooter();
+    }
+
+    if (typeof updateSquadUI === 'function' && !updateSquadUI.__farrelNoStackWrapped) {
+        const oldUpdateSquadUI = updateSquadUI;
+        updateSquadUI = function farrelNoStackUpdateSquadUI() {
+            const result = oldUpdateSquadUI.apply(this, arguments);
+            setTimeout(normalizeSquadCardsNoStack, 0);
+            return result;
+        };
+        updateSquadUI.__farrelNoStackWrapped = true;
+        window.updateSquadUI = updateSquadUI;
+    }
+
+    if (typeof showRow === 'function' && !showRow.__farrelNoStackWrapped) {
+        const oldShowRow = showRow;
+        showRow = function farrelNoStackShowRow() {
+            const result = oldShowRow.apply(this, arguments);
+            setTimeout(normalizeSquadCardsNoStack, 0);
+            return result;
+        };
+        showRow.__farrelNoStackWrapped = true;
+        window.showRow = showRow;
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            keepResizeHandleAsPanelFooter();
+            normalizeSquadCardsNoStack();
+            setTimeout(normalizeSquadCardsNoStack, 250);
+        });
+    } else {
+        keepResizeHandleAsPanelFooter();
+        normalizeSquadCardsNoStack();
+        setTimeout(normalizeSquadCardsNoStack, 250);
+    }
+})();
+
+
+/* --- FARREL NO-STACK PATCH C: raise old too-small saved panel height once --- */
+(function farrelReadableSquadPanelDefault() {
+    const KEY = 'ballBattleControlPanelHeightV2';
+    function applyReadableDefault() {
+        const panel = document.getElementById('controlsPanel');
+        if (!panel) return;
+        let saved = 0;
+        try { saved = Number(localStorage.getItem(KEY) || localStorage.getItem('ballBattleControlPanelHeight') || 0); } catch (err) { saved = 0; }
+        if (!saved || saved <= 190) {
+            const h = 230;
+            document.documentElement.style.setProperty('--control-panel-height', `${h}px`);
+            panel.dataset.controlHeight = String(h);
+            try {
+                localStorage.setItem(KEY, String(h));
+                localStorage.setItem('ballBattleControlPanelHeight', String(h));
+            } catch (err) {}
+        }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyReadableDefault);
+    else applyReadableDefault();
+    setTimeout(applyReadableDefault, 150);
+})();
+
+
+/* --- FARREL LABEL NUMBERS + FUN RECAP + FISH LATCH CAMERA FIX PATCH --- */
+(function farrelLabelsRecapFunPatch() {
+    function statListWithIds() {
+        return Object.entries(battleStats || {}).map(([id, stat]) => {
+            const endFrame = stat.deathFrame === null || stat.deathFrame === undefined ? frameCount : stat.deathFrame;
+            const spawn = stat.spawnFrame === undefined ? battleStartFrame || 0 : stat.spawnFrame;
+            const aliveFrames = Math.max(0, endFrame - spawn);
+            const shotsFired = stat.shotsFired || 0;
+            const shotsHit = stat.shotsHit || 0;
+
+            return {
+                ...stat,
+                id: stat.id || id,
+                aliveFrames,
+                accuracy: shotsFired > 0 ? shotsHit / shotsFired : null
+            };
+        });
+    }
+
+    function getBattleHeatInfo() {
+        const stats = statListWithIds();
+        const totalDamage = stats.reduce((sum, stat) => sum + (stat.damageDealt || 0), 0);
+        const totalShots = stats.reduce((sum, stat) => sum + (stat.shotsFired || 0), 0);
+        const fighters = Math.max(1, stats.length);
+        const timeSeconds = Math.max(1, Math.round((frameCount - battleStartFrame) / 60));
+        const damagePerFighter = totalDamage / fighters;
+        const koRate = battleTotalKills / Math.max(1, timeSeconds / 30);
+        const shotPressure = totalShots / fighters;
+
+        const score = Math.round(
+            Math.min(100,
+                damagePerFighter * 0.16 +
+                battleTotalKills * 5 +
+                koRate * 12 +
+                shotPressure * 0.65
+            )
+        );
+
+        let label = 'Calm Skirmish';
+        if (score >= 25) label = 'Heated Fight';
+        if (score >= 50) label = 'Arena Chaos';
+        if (score >= 75) label = 'Absolute Mayhem';
+        if (score >= 92) label = 'Legendary Bloodbath';
+
+        return { score, label, totalDamage, totalShots, fighters, timeSeconds };
+    }
+
+    function buildBattleHeatHTML() {
+        const heat = getBattleHeatInfo();
+        return `
+            <div class="recap-card wide battle-heat-card">
+                <span>Battle Heat</span>
+                <b>${escapeHtml(heat.label)} — ${heat.score}/100</b>
+                <div class="battle-heat-meter">
+                    <div class="battle-heat-fill" style="width:${Math.max(3, heat.score)}%;"></div>
+                </div>
+            </div>
+        `;
+    }
+
+    function buildDetailedFighterReportHTML() {
+        const stats = statListWithIds()
+            .sort((a, b) => {
+                const scoreA = (a.kills || 0) * 120 + (a.damageDealt || 0) + (a.aliveFrames || 0) / 20 - (a.damageTaken || 0) * 0.12;
+                const scoreB = (b.kills || 0) * 120 + (b.damageDealt || 0) + (b.aliveFrames || 0) / 20 - (b.damageTaken || 0) * 0.12;
+                return scoreB - scoreA;
+            });
+
+        if (stats.length === 0) {
+            return `<div id="detailedRecapPanel" class="detailed-recap-panel" style="display:none;"><em>No fighter data recorded.</em></div>`;
+        }
+
+        const rows = stats.map((stat, index) => {
+            const accuracyText = stat.accuracy === null
+                ? '—'
+                : `${Math.round(stat.accuracy * 100)}%`;
+
+            const status = stat.deathFrame === null || stat.deathFrame === undefined ? 'Survived' : 'KO';
+            const role = escapeHtml(stat.type || '?');
+            const name = escapeHtml(stat.name || stat.type || `Fighter ${index + 1}`);
+
+            return `
+                <div class="detailed-fighter-row">
+                    <div class="detailed-rank">${index + 1}</div>
+                    <div class="detailed-color-dot" style="background:${escapeHtml(stat.color || '#777')}"></div>
+                    <div class="detailed-main">
+                        <b>${name}</b>
+                        <span>${role} · ${status} · Alive ${formatBattleTime(stat.aliveFrames || 0)}</span>
+                    </div>
+                    <div class="detailed-stat"><span>KO</span><b>${stat.kills || 0}</b></div>
+                    <div class="detailed-stat"><span>DMG+</span><b>${Math.round(stat.damageDealt || 0)}</b></div>
+                    <div class="detailed-stat"><span>DMG-</span><b>${Math.round(stat.damageTaken || 0)}</b></div>
+                    <div class="detailed-stat"><span>ACC</span><b>${accuracyText}</b></div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div id="detailedRecapPanel" class="detailed-recap-panel" style="display:none;">
+                <div class="detailed-recap-title">Detailed Fighter Report</div>
+                ${rows}
+            </div>
+        `;
+    }
+
+    window.toggleDetailedRecap = function toggleDetailedRecap() {
+        const panel = document.getElementById('detailedRecapPanel');
+        const btn = document.getElementById('detailedRecapBtn');
+        if (!panel) return;
+
+        const nextVisible = panel.style.display === 'none' || !panel.style.display;
+        panel.style.display = nextVisible ? 'block' : 'none';
+
+        if (btn) {
+            btn.innerText = nextVisible ? 'Hide Fighter Report' : 'Show Fighter Report';
+        }
+    };
+
+    window.copyBattleRecapSummary = function copyBattleRecapSummary() {
+        const stats = statListWithIds();
+        const heat = getBattleHeatInfo();
+
+        const lines = [
+            `Battle Recap — ${heat.label} (${heat.score}/100)`,
+            `Total KOs: ${battleTotalKills}`,
+            `Battle Time: ${formatBattleTime(frameCount - battleStartFrame)}`,
+            '',
+            ...stats
+                .sort((a, b) => (b.damageDealt || 0) - (a.damageDealt || 0))
+                .map(stat => {
+                    const accuracy = stat.accuracy === null ? 'N/A' : `${Math.round(stat.accuracy * 100)}%`;
+                    return `${stat.name}: ${stat.kills || 0} KO, ${Math.round(stat.damageDealt || 0)} dealt, ${Math.round(stat.damageTaken || 0)} taken, ${accuracy} accuracy, survived ${formatBattleTime(stat.aliveFrames || 0)}`;
+                })
+        ];
+
+        const text = lines.join('\n');
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text)
+                .then(() => showCustomMessage('Battle Recap', 'Copied detailed recap to clipboard.'))
+                .catch(() => showCustomMessage('Battle Recap', text.slice(0, 220) + '...'));
+        } else {
+            showCustomMessage('Battle Recap', text.slice(0, 220) + '...');
+        }
+    };
+
+    if (typeof buildBattleRecapHTML === 'function' && !buildBattleRecapHTML.__farrelDetailedWrapped) {
+        const originalBuildBattleRecapHTML = buildBattleRecapHTML;
+
+        buildBattleRecapHTML = function farrelDetailedBuildBattleRecapHTML() {
+            const baseHTML = originalBuildBattleRecapHTML.apply(this, arguments);
+            const extraHTML = `
+                <div class="recap-fun-row">
+                    ${buildBattleHeatHTML()}
+                    <div class="recap-action-row">
+                        <button id="detailedRecapBtn" onclick="toggleDetailedRecap()">Show Fighter Report</button>
+                        <button onclick="copyBattleRecapSummary()">Copy Recap</button>
+                    </div>
+                    ${buildDetailedFighterReportHTML()}
+                </div>
+            `;
+
+            const insertIndex = baseHTML.lastIndexOf('</div>');
+            if (insertIndex === -1) return baseHTML + extraHTML;
+            return baseHTML.slice(0, insertIndex) + extraHTML + baseHTML.slice(insertIndex);
+        };
+
+        buildBattleRecapHTML.__farrelDetailedWrapped = true;
+        window.buildBattleRecapHTML = buildBattleRecapHTML;
+    }
+
+    // Anchor latched fish with stable local offsets so camera zoom/tracking cannot make them float away.
+    if (typeof updateAquamarineProjectiles === 'function' && !updateAquamarineProjectiles.__farrelLatchStableWrapped) {
+        const previousUpdateAquamarineProjectiles = updateAquamarineProjectiles;
+
+        updateAquamarineProjectiles = function farrelStableLatchedFishUpdate() {
+            const result = previousUpdateAquamarineProjectiles.apply(this, arguments);
+
+            if (!Array.isArray(projectiles) || !Array.isArray(entities)) return result;
+
+            projectiles.forEach(p => {
+                if (!p || p.dead || p.type !== 'fish' || !p.latchedTargetId) return;
+
+                const target = entities.find(en => en && en.id === p.latchedTargetId && en.hp > 0);
+                if (!target) return;
+
+                if (p.latchLocalAngle === undefined) {
+                    p.latchLocalAngle = Math.atan2(p.y - target.y, p.x - target.x) - (target.angle || 0);
+                    p.latchDistance = clamp((target.radius || 20) * 0.78 + 5, 14, (target.radius || 20) + 8);
+                }
+
+                const worldAngle = (target.angle || 0) + p.latchLocalAngle + Math.sin(frameCount * 0.18 + (p.fishPhase || 0)) * 0.12;
+                p.x = target.x + Math.cos(worldAngle) * p.latchDistance;
+                p.y = target.y + Math.sin(worldAngle) * p.latchDistance;
+                p.vx = target.vx || 0;
+                p.vy = target.vy || 0;
+            });
+
+            return result;
+        };
+
+        updateAquamarineProjectiles.__farrelLatchStableWrapped = true;
+        window.updateAquamarineProjectiles = updateAquamarineProjectiles;
+    }
+})();
+
+
+/* --- FARREL MASS MAPS + UNIQUE FFA COLORS + FUN FEATURES PATCH --- */
+(function farrelMassMapsColorsFunPatch() {
+    const MASS_RENDER_LIMIT = 120;
+    const MASS_MAP_SIZES = {
+        small: { w: 400, h: 400 },
+        normal: { w: 600, h: 500 },
+        large: { w: 1200, h: 800 },
+        huge: { w: 2000, h: 1500 },
+        massive: { w: 3600, h: 2400 },
+        mega: { w: 9000, h: 6000 }
+    };
+
+    let massSpawnCursor = { ffa: 0, p1: 0, p2: 0 };
+    let farrelSuddenDeathEnabled = false;
+    let farrelKOConfettiEnabled = false;
+    let farrelShowdownEnabled = true;
+    let suddenDeathAnnounced = false;
+
+    function safeNum(value, fallback, min, max) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return fallback;
+        return clamp(Math.round(n), min, max);
+    }
+
+    function getDesiredCount(prefix) {
+        const input = document.getElementById(prefix + 'Count');
+        return safeNum(input ? input.value : 1, 1, 1, 10000);
+    }
+
+    function getDesiredTotalFighters() {
+        const p1 = getDesiredCount('p1');
+        const p2 = GAME_MODE === 'ffa' ? 0 : getDesiredCount('p2');
+        return Math.max(1, p1 + p2);
+    }
+
+    function titleForType(type) {
+        return typeof titleCaseName === 'function'
+            ? titleCaseName(type)
+            : String(type || 'unarmed').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function setCanvasMapSize(w, h, modeLabel = 'custom') {
+        w = safeNum(w, 600, 300, 12000);
+        h = safeNum(h, 500, 300, 9000);
+
+        canvas.width = w;
+        canvas.height = h;
+        canvas.style.aspectRatio = `${w} / ${h}`;
+
+        camera.x = w / 2;
+        camera.y = h / 2;
+        camera.zoom = Math.min(camera.zoom || 1, 1);
+
+        const cw = document.getElementById('customMapWidth');
+        const ch = document.getElementById('customMapHeight');
+        if (cw) cw.value = w;
+        if (ch) ch.value = h;
+
+        try {
+            localStorage.setItem('ballBattleMapSize', JSON.stringify({ w, h, modeLabel }));
+        } catch (err) {}
+
+        if (isSetupPhase && typeof initializeSquads === 'function') {
+            initializeSquads();
+        }
+
+        if (typeof showCustomMessage === 'function') {
+            showCustomMessage('Map Size', `${modeLabel.toUpperCase()} map: ${w} × ${h}`);
+        }
+    }
+
+    window.applyCustomMapSize = function applyCustomMapSize() {
+        if (!isSetupPhase) {
+            showCustomMessage('Notice', 'Cannot change map size during battle. Hit RESET first.');
+            return;
+        }
+
+        const w = document.getElementById('customMapWidth');
+        const h = document.getElementById('customMapHeight');
+        setCanvasMapSize(w ? w.value : 3000, h ? h.value : 2000, 'custom');
+    };
+
+    window.setMassBattlePreset = function setMassBattlePreset(count) {
+        if (!isSetupPhase) {
+            showCustomMessage('Notice', 'Reset before changing mass battle setup.');
+            return;
+        }
+
+        const modeSelect = document.getElementById('modeSelect');
+        if (modeSelect && modeSelect.value !== 'ffa') {
+            modeSelect.value = 'ffa';
+            if (typeof toggleGameMode === 'function') toggleGameMode();
+        } else {
+            GAME_MODE = 'ffa';
+        }
+
+        const p1 = document.getElementById('p1Count');
+        if (p1) p1.value = String(count);
+
+        const mapSelect = document.getElementById('mapSizeSelect');
+        if (mapSelect) mapSelect.value = count >= 10000 ? 'mega' : 'massive';
+
+        changeMapSize();
+        if (typeof randomizeSquads === 'function') randomizeSquads('p1');
+        if (typeof showCustomMessage === 'function') {
+            showCustomMessage('Mass Battle', `${count} fighter FFA prepared with a matching map.`);
+        }
+    };
+
+    function syncCustomMapControls() {
+        const mapSelect = document.getElementById('mapSizeSelect');
+        const controls = document.getElementById('customMapControls');
+        if (!mapSelect || !controls) return;
+        controls.style.display = mapSelect.value === 'custom' ? 'block' : 'none';
+    }
+
+    if (typeof changeMapSize === 'function') {
+        changeMapSize = function farrelMassiveChangeMapSize() {
+            if (!isSetupPhase) {
+                showCustomMessage('Notice', 'Cannot change map size during battle. Hit RESET first.');
+                return;
+            }
+
+            const mapSelect = document.getElementById('mapSizeSelect');
+            const size = mapSelect ? mapSelect.value : 'normal';
+            syncCustomMapControls();
+
+            if (size === 'custom') {
+                window.applyCustomMapSize();
+                return;
+            }
+
+            const dims = MASS_MAP_SIZES[size] || MASS_MAP_SIZES.normal;
+            setCanvasMapSize(dims.w, dims.h, size);
+        };
+        window.changeMapSize = changeMapSize;
+    }
+
+    function getUnlimitedFFAColor(index) {
+        // Golden-angle hue + cycling saturation/lightness gives thousands of visibly separated colors.
+        const i = Math.max(1, Number(index) || 1);
+        const hue = (i * 137.50776405003785) % 360;
+        const sat = 58 + ((i * 47) % 35);    // 58-92
+        const light = 38 + ((i * 29) % 24);  // 38-61
+        return `hsl(${hue.toFixed(3)}, ${sat}%, ${light}%)`;
+    }
+
+    function applyUniqueFFAColors() {
+        if (GAME_MODE !== 'ffa' || !Array.isArray(entities)) return;
+
+        const teamColor = new Map();
+        const livingTeams = [...new Set(entities
+            .filter(e => e && e.team !== 0)
+            .map(e => e.team))]
+            .sort((a, b) => Number(a) - Number(b));
+
+        livingTeams.forEach((team, index) => {
+            teamColor.set(team, getUnlimitedFFAColor(index + 1));
+        });
+
+        entities.forEach(e => {
+            if (!e || e.team === 0) return;
+            const c = teamColor.get(e.team);
+            if (c) e.color = c;
+        });
+
+        Object.values(battleStats || {}).forEach(stat => {
+            if (!stat || stat.team === undefined) return;
+            const c = teamColor.get(stat.team);
+            if (c) stat.color = c;
+        });
+    }
+
+    function shouldUseMassGridSpawn() {
+        return getDesiredTotalFighters() > 220 || canvas.width >= 3000 || canvas.height >= 2200;
+    }
+
+    function nextGridSpawn(side, myRadius = 20) {
+        const total = Math.max(1, getDesiredTotalFighters());
+        const padding = Math.max(60, myRadius + 25);
+        const availableW = Math.max(100, canvas.width - padding * 2);
+        const availableH = Math.max(100, canvas.height - padding * 2);
+        const aspect = availableW / availableH;
+
+        let areaMultiplier = GAME_MODE === 'ffa' ? 1 : 0.5;
+        const effectiveTotal = GAME_MODE === 'ffa'
+            ? total
+            : Math.max(1, side === 1 ? getDesiredCount('p1') : getDesiredCount('p2'));
+
+        let cols = Math.ceil(Math.sqrt(effectiveTotal * aspect * areaMultiplier));
+        cols = Math.max(1, cols);
+        const rows = Math.max(1, Math.ceil(effectiveTotal / cols));
+
+        const cursorKey = GAME_MODE === 'ffa' ? 'ffa' : (side === 1 ? 'p1' : 'p2');
+        const index = massSpawnCursor[cursorKey]++;
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+
+        const cellW = availableW * (GAME_MODE === 'ffa' ? 1 : 0.47) / cols;
+        const cellH = availableH / rows;
+
+        let xBase;
+        if (GAME_MODE === 'ffa') {
+            xBase = padding;
+        } else if (side === 1) {
+            xBase = padding;
+        } else {
+            xBase = canvas.width * 0.53;
+        }
+
+        const jitterX = (Math.random() - 0.5) * Math.min(cellW * 0.45, 26);
+        const jitterY = (Math.random() - 0.5) * Math.min(cellH * 0.45, 26);
+
+        return {
+            x: clamp(xBase + col * cellW + cellW / 2 + jitterX, padding, canvas.width - padding),
+            y: clamp(padding + row * cellH + cellH / 2 + jitterY, padding, canvas.height - padding)
+        };
+    }
+
+    if (typeof getSafeSpawnPos === 'function' && !getSafeSpawnPos.__farrelMassGridWrapped) {
+        const oldGetSafeSpawnPos = getSafeSpawnPos;
+        getSafeSpawnPos = function farrelMassGridSafeSpawn(side, myRadius = 20) {
+            if (shouldUseMassGridSpawn()) {
+                return nextGridSpawn(side, myRadius);
+            }
+            return oldGetSafeSpawnPos.apply(this, arguments);
+        };
+        getSafeSpawnPos.__farrelMassGridWrapped = true;
+        window.getSafeSpawnPos = getSafeSpawnPos;
+    }
+
+    if (typeof generateSelectors === 'function' && !generateSelectors.__farrelMassUIWrapped) {
+        const oldGenerateSelectors = generateSelectors;
+        generateSelectors = function farrelMassGenerateSelectors(containerId, count, prefix, previousTypes) {
+            const actualCount = safeNum(count, 1, 0, 10000);
+            const renderCount = Math.min(actualCount, MASS_RENDER_LIMIT);
+            const result = oldGenerateSelectors.call(this, containerId, renderCount, prefix, previousTypes);
+
+            const container = document.getElementById(containerId);
+            if (container && actualCount > MASS_RENDER_LIMIT) {
+                const subtitle = container.querySelector('.squad-modern-subtitle');
+                if (subtitle) {
+                    subtitle.innerText = `${actualCount} fighters · ${renderCount} editable templates`;
+                }
+
+                const note = document.createElement('div');
+                note.className = 'mass-squad-note';
+                note.innerHTML = `
+                    Mass squad mode: showing ${renderCount} editable templates.
+                    The remaining ${actualCount - renderCount} fighters spawn as repeated/randomized copies.
+                `;
+                const header = container.querySelector('.squad-modern-header');
+                if (header && header.nextSibling) {
+                    container.insertBefore(note, header.nextSibling);
+                } else {
+                    container.appendChild(note);
+                }
+            }
+
+            return result;
+        };
+        generateSelectors.__farrelMassUIWrapped = true;
+        window.generateSelectors = generateSelectors;
+    }
+
+    function getTemplateTypes(prefix) {
+        const inputs = Array.from(document.querySelectorAll(`.${prefix}-input`));
+        const types = inputs
+            .map(input => normalizeFighterInputValue(input.value))
+            .filter(Boolean);
+
+        if (types.length > 0) return types;
+
+        const usable = FIGHTER_OPTIONS.filter(type => type && type !== 'empty');
+        return [usable[Math.floor(Math.random() * usable.length)] || 'unarmed'];
+    }
+
+    function spawnMassExtraFighter(prefix, index, nextTeam) {
+        const side = prefix === 'p1' ? 1 : 2;
+        const templates = getTemplateTypes(prefix);
+        let type = templates[index % templates.length] || 'unarmed';
+
+        // Make massive battles more varied when the user only edited a few templates.
+        if (index >= templates.length && Math.random() < 0.28) {
+            const usable = FIGHTER_OPTIONS.filter(t => t && t !== 'empty');
+            type = usable[Math.floor(Math.random() * usable.length)] || type;
+        }
+
+        const team = GAME_MODE === 'ffa' ? nextTeam : side;
+        const spawn = getSafeSpawnPos(side, 25);
+        const fighter = createFighter(type, spawn.x, spawn.y, team, false, null, null, prefix, index);
+
+        fighter.initialX = spawn.x;
+        fighter.initialY = spawn.y;
+        fighter.nameIndex = entities.filter(e => e && e.type !== 'turret' && e.type !== 'boid' && !e.parentId).length + 1;
+        fighter.displayName = getPersistentBallName(prefix, index, type);
+
+        entities.push(fighter);
+
+        if (type === 'necromancer' && typeof spawnSkeleton === 'function') {
+            spawnSkeleton(spawn.x + (side === 1 ? -30 : 30), spawn.y + 20, team, fighter.id);
+            spawnSkeleton(spawn.x + (side === 1 ? -30 : 30), spawn.y - 20, team, fighter.id);
+        }
+
+        if (type === 'dualist') {
+            const pet = createFighter('binder', spawn.x + (side === 1 ? -40 : 40), spawn.y, team, true, fighter.id);
+            pet.ownerId = fighter.id;
+            pet.color = fighter.color;
+            entities.push(pet);
+        }
+
+        return fighter;
+    }
+
+    function addMassExtraFightersIfNeeded() {
+        const desiredP1 = getDesiredCount('p1');
+        const desiredP2 = GAME_MODE === 'ffa' ? 0 : getDesiredCount('p2');
+
+        const existingP1 = entities.filter(e => e && e.spawnSide === 'p1' && e.type !== 'boid' && e.type !== 'turret' && !e.parentId).length;
+        const existingP2 = entities.filter(e => e && e.spawnSide === 'p2' && e.type !== 'boid' && e.type !== 'turret' && !e.parentId).length;
+
+        let nextTeam = Math.max(0, ...entities.map(e => Number(e.team) || 0)) + 1;
+
+        for (let i = existingP1; i < desiredP1; i++) {
+            spawnMassExtraFighter('p1', i, nextTeam++);
+        }
+
+        if (GAME_MODE !== 'ffa') {
+            for (let i = existingP2; i < desiredP2; i++) {
+                spawnMassExtraFighter('p2', i, nextTeam++);
+            }
+        }
+
+        // Register extra fighters in recap stats.
+        entities.forEach(e => {
+            if (!e || e.type === 'turret' || e.type === 'boid' || e.parentId) return;
+            if (!battleStats[e.id]) {
+                battleStats[e.id] = {
+                    id: e.id,
+                    name: typeof getEntityName === 'function' ? getEntityName(e) : e.type,
+                    type: e.type,
+                    color: e.color || '#777',
+                    kills: 0,
+                    team: e.team,
+                    damageDealt: 0,
+                    damageTaken: 0,
+                    shotsFired: 0,
+                    shotsHit: 0,
+                    spawnFrame: frameCount,
+                    deathFrame: null
+                };
+            }
+        });
+    }
+
+    if (typeof initializeSquads === 'function' && !initializeSquads.__farrelMassWrapped) {
+        const oldInitializeSquads = initializeSquads;
+        initializeSquads = function farrelMassInitializeSquads() {
+            massSpawnCursor = { ffa: 0, p1: 0, p2: 0 };
+            const result = oldInitializeSquads.apply(this, arguments);
+            addMassExtraFightersIfNeeded();
+            applyUniqueFFAColors();
+            if (typeof updateLiveCounts === 'function') updateLiveCounts();
+            return result;
+        };
+        initializeSquads.__farrelMassWrapped = true;
+        window.initializeSquads = initializeSquads;
+    }
+
+    window.toggleSuddenDeathMode = function toggleSuddenDeathMode() {
+        farrelSuddenDeathEnabled = !farrelSuddenDeathEnabled;
+        const btn = document.getElementById('suddenDeathBtn');
+        if (btn) {
+            btn.innerText = farrelSuddenDeathEnabled ? 'Sudden Death: ON' : 'Sudden Death: OFF';
+            btn.classList.toggle('active', farrelSuddenDeathEnabled);
+        }
+        suddenDeathAnnounced = false;
+    };
+
+    window.toggleKOConfetti = function toggleKOConfetti() {
+        farrelKOConfettiEnabled = !farrelKOConfettiEnabled;
+        const btn = document.getElementById('koConfettiBtn');
+        if (btn) {
+            btn.innerText = farrelKOConfettiEnabled ? 'KO Confetti: ON' : 'KO Confetti: OFF';
+            btn.classList.toggle('active', farrelKOConfettiEnabled);
+        }
+    };
+
+    window.toggleFinalShowdown = function toggleFinalShowdown() {
+        farrelShowdownEnabled = !farrelShowdownEnabled;
+        const btn = document.getElementById('showdownBtn');
+        if (btn) {
+            btn.innerText = farrelShowdownEnabled ? 'Showdown: ON' : 'Showdown: OFF';
+            btn.classList.toggle('active', farrelShowdownEnabled);
+        }
+    };
+
+    function spawnKOConfetti(x, y) {
+        if (!farrelKOConfettiEnabled || !Array.isArray(particles)) return;
+        const colors = ['#ff4757', '#ffa502', '#2ed573', '#00c3ff', '#a55eea', '#fff200'];
+        for (let i = 0; i < 24; i++) {
+            spawnParticles(
+                x + (Math.random() - 0.5) * 28,
+                y + (Math.random() - 0.5) * 28,
+                colors[i % colors.length],
+                1,
+                i % 5 === 0 ? 'note' : 'dot'
+            );
+        }
+    }
+
+    if (typeof recordDeathForRecap === 'function' && !recordDeathForRecap.__farrelConfettiWrapped) {
+        const oldRecordDeathForRecap = recordDeathForRecap;
+        recordDeathForRecap = function farrelConfettiDeathRecap(victim) {
+            const result = oldRecordDeathForRecap.apply(this, arguments);
+            if (victim && victim.x !== undefined && victim.y !== undefined) {
+                spawnKOConfetti(victim.x, victim.y);
+            }
+            return result;
+        };
+        recordDeathForRecap.__farrelConfettiWrapped = true;
+        window.recordDeathForRecap = recordDeathForRecap;
+    }
+
+    function applySuddenDeathPressure() {
+        if (!farrelSuddenDeathEnabled || isSetupPhase || gameOverTriggered) return;
+
+        const elapsed = frameCount - (battleStartFrame || 0);
+        const startAt = 60 * 90; // 90 seconds
+        if (elapsed < startAt) return;
+
+        if (!suddenDeathAnnounced) {
+            suddenDeathAnnounced = true;
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            if (typeof spawnDamageText === 'function') spawnDamageText(cx, cy, 'SUDDEN DEATH', '#ff4757', true);
+            if (typeof showCustomMessage === 'function') showCustomMessage('Sudden Death', 'Arena edges are now dangerous.');
+        }
+
+        const danger = Math.min(
+            Math.min(canvas.width, canvas.height) * 0.34,
+            55 + (elapsed - startAt) * 0.018
+        );
+
+        entities.forEach(e => {
+            if (!e || e.hp <= 0 || e.type === 'turret' || e.type === 'boid' || e.type === 'mammoth_mount') return;
+
+            const outside =
+                e.x < danger ||
+                e.y < danger ||
+                e.x > canvas.width - danger ||
+                e.y > canvas.height - danger;
+
+            if (!outside) return;
+
+            const dx = canvas.width / 2 - e.x;
+            const dy = canvas.height / 2 - e.y;
+            const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+
+            e.vx += (dx / dist) * 0.9;
+            e.vy += (dy / dist) * 0.9;
+
+            if (frameCount % 12 === 0) {
+                damageEntity(e, 1.25, e.x, e.y, null);
+                spawnParticles(e.x, e.y, '#ff4757', 2);
+            }
+        });
+    }
+
+    function applyFinalShowdownCamera() {
+        if (!farrelShowdownEnabled || isSetupPhase || gameOverTriggered) return;
+        if (camera.targetId) return;
+
+        const living = entities.filter(e =>
+            e &&
+            e.hp > 0 &&
+            e.type !== 'turret' &&
+            e.type !== 'boid' &&
+            e.type !== 'mammoth_mount' &&
+            !e.parentId
+        );
+
+        if (living.length !== 2) return;
+
+        const midX = (living[0].x + living[1].x) / 2;
+        const midY = (living[0].y + living[1].y) / 2;
+        const dist = Math.sqrt((living[0].x - living[1].x) ** 2 + (living[0].y - living[1].y) ** 2);
+        const desiredZoom = clamp(1.9 - dist / 1600, 1.05, 2.25);
+
+        camera.x += (midX - camera.x) * 0.045;
+        camera.y += (midY - camera.y) * 0.045;
+        camera.zoom += (desiredZoom - camera.zoom) * 0.035;
+
+        if (frameCount % 180 === 0 && typeof spawnDamageText === 'function') {
+            spawnDamageText(midX, midY - 60, 'FINAL SHOWDOWN', 'gold', true);
+        }
+    }
+
+    if (typeof update === 'function' && !update.__farrelFunWrapped) {
+        const oldUpdate = update;
+        update = function farrelFunUpdate() {
+            const result = oldUpdate.apply(this, arguments);
+            applyUniqueFFAColors();
+            applySuddenDeathPressure();
+            applyFinalShowdownCamera();
+            return result;
+        };
+        update.__farrelFunWrapped = true;
+        window.update = update;
+    }
+
+    if (typeof draw === 'function' && !draw.__farrelFunWrapped) {
+        const oldDraw = draw;
+        draw = function farrelFunDraw() {
+            const result = oldDraw.apply(this, arguments);
+
+            // Screen-space sudden death indicator. It does not interfere with world/camera transforms.
+            if (farrelSuddenDeathEnabled && !isSetupPhase && !gameOverTriggered && frameCount - (battleStartFrame || 0) >= 60 * 90) {
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                const pulse = 0.65 + Math.sin(frameCount * 0.12) * 0.25;
+                ctx.globalAlpha = pulse;
+                ctx.strokeStyle = '#ff4757';
+                ctx.lineWidth = 8;
+                ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+                ctx.globalAlpha = 1;
+                ctx.font = 'bold 22px Impact, Arial Black, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#ff4757';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 4;
+                ctx.strokeText('SUDDEN DEATH', canvas.width / 2, 34);
+                ctx.fillText('SUDDEN DEATH', canvas.width / 2, 34);
+                ctx.restore();
+            }
+
+            return result;
+        };
+        draw.__farrelFunWrapped = true;
+        window.draw = draw;
+    }
+
+    if (typeof randomizeCounts === 'function' && !randomizeCounts.__farrelMassWrapped) {
+        const oldRandomizeCounts = randomizeCounts;
+        randomizeCounts = function farrelMassRandomizeCounts() {
+            const mapSize = document.getElementById('mapSizeSelect')?.value || '';
+            if (mapSize === 'massive' || mapSize === 'mega') {
+                const max = mapSize === 'mega' ? 500 : 80;
+                const p1 = document.getElementById('p1Count');
+                const p2 = document.getElementById('p2Count');
+                if (p1) p1.value = String(1 + Math.floor(Math.random() * max));
+                if (p2 && GAME_MODE !== 'ffa') p2.value = String(1 + Math.floor(Math.random() * max));
+                updateSquadUI();
+                return;
+            }
+            return oldRandomizeCounts.apply(this, arguments);
+        };
+        randomizeCounts.__farrelMassWrapped = true;
+        window.randomizeCounts = randomizeCounts;
+    }
+
+    function bootMassPatch() {
+        syncCustomMapControls();
+
+        const mapSelect = document.getElementById('mapSizeSelect');
+        if (mapSelect && !mapSelect.__farrelMassListener) {
+            mapSelect.addEventListener('change', syncCustomMapControls);
+            mapSelect.__farrelMassListener = true;
+        }
+
+        document.querySelectorAll('#p1Count,#p2Count,#fsP1Count,#fsP2Count').forEach(input => {
+            if (input) input.max = '10000';
+        });
+
+        const saved = localStorage.getItem('ballBattleMapSize');
+        if (saved && isSetupPhase) {
+            try {
+                const data = JSON.parse(saved);
+                if (data && data.w && data.h && canvas.width === 600 && canvas.height === 500) {
+                    // Preserve the saved dimensions only after the user explicitly used custom/massive maps before.
+                    if (data.modeLabel === 'custom' || data.modeLabel === 'massive' || data.modeLabel === 'mega') {
+                        setCanvasMapSize(data.w, data.h, data.modeLabel);
+                    }
+                }
+            } catch (err) {}
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootMassPatch);
+    } else {
+        bootMassPatch();
+    }
+})();
+
+/* --- FARREL FUN FEATURES PACK 2 + KO CONFETTI DEFAULT OFF PATCH --- */
+(function farrelFunFeaturesPackTwo() {
+    let farrelRageModeEnabled = false;
+    let farrelPowerDropsEnabled = false;
+    let farrelRivalLinesEnabled = false;
+    let farrelPowerDrops = [];
+    let nextPowerDropFrame = 0;
+
+    const POWER_DROP_TYPES = [
+        { type: 'heal', label: 'HEAL', color: '#2ed573', icon: '+' },
+        { type: 'speed', label: 'SPEED', color: '#00c3ff', icon: '»' },
+        { type: 'damage', label: 'DAMAGE', color: '#ff4757', icon: '!' },
+        { type: 'shield', label: 'SHIELD', color: '#f1c40f', icon: '◆' }
+    ];
+
+    function mainCombatFighters() {
+        if (!Array.isArray(entities)) return [];
+        return entities.filter(e =>
+            e && e.hp > 0 &&
+            e.type !== 'turret' &&
+            e.type !== 'boid' &&
+            e.type !== 'mammoth_mount' &&
+            !e.parentId
+        );
+    }
+
+    function safeDist(a, b) {
+        if (!a || !b) return Infinity;
+        return Math.hypot((a.x || 0) - (b.x || 0), (a.y || 0) - (b.y || 0));
+    }
+
+    function findNearestEnemyForFeature(e) {
+        let best = null;
+        let bestD = Infinity;
+        mainCombatFighters().forEach(other => {
+            if (!other || other.id === e.id || other.team === e.team) return;
+            const d = safeDist(e, other);
+            if (d < bestD) {
+                best = other;
+                bestD = d;
+            }
+        });
+        return best;
+    }
+
+    function worldToScreenPoint(x, y) {
+        const z = camera && Number.isFinite(camera.zoom) ? camera.zoom : 1;
+        return {
+            x: (x - (camera?.x || 0)) * z + canvas.width / 2,
+            y: (y - (camera?.y || 0)) * z + canvas.height / 2,
+            z
+        };
+    }
+
+    function isOnScreen(pt, margin = 90) {
+        return pt.x > -margin && pt.y > -margin && pt.x < canvas.width + margin && pt.y < canvas.height + margin;
+    }
+
+    function setToggleButton(buttonId, enabled, onText, offText) {
+        const btn = document.getElementById(buttonId);
+        if (!btn) return;
+        btn.innerText = enabled ? onText : offText;
+        btn.classList.toggle('active', enabled);
+    }
+
+    window.toggleRageMode = function toggleRageMode() {
+        farrelRageModeEnabled = !farrelRageModeEnabled;
+        setToggleButton('rageModeBtn', farrelRageModeEnabled, 'Rage Mode: ON', 'Rage Mode: OFF');
+        if (typeof showCustomMessage === 'function') {
+            showCustomMessage('Rage Mode', farrelRageModeEnabled ? 'Low-HP fighters hit harder and surge forward.' : 'Rage Mode disabled.');
+        }
+    };
+
+    window.togglePowerDrops = function togglePowerDrops() {
+        farrelPowerDropsEnabled = !farrelPowerDropsEnabled;
+        setToggleButton('powerDropsBtn', farrelPowerDropsEnabled, 'Power Drops: ON', 'Power Drops: OFF');
+        if (!farrelPowerDropsEnabled) farrelPowerDrops = [];
+        nextPowerDropFrame = frameCount + 240;
+        if (typeof showCustomMessage === 'function') {
+            showCustomMessage('Power Drops', farrelPowerDropsEnabled ? 'Boost orbs will spawn during battle.' : 'Power Drops disabled.');
+        }
+    };
+
+    window.toggleRivalLines = function toggleRivalLines() {
+        farrelRivalLinesEnabled = !farrelRivalLinesEnabled;
+        setToggleButton('rivalLinesBtn', farrelRivalLinesEnabled, 'Rival Lines: ON', 'Rival Lines: OFF');
+        if (typeof showCustomMessage === 'function') {
+            showCustomMessage('Rival Lines', farrelRivalLinesEnabled ? 'The current main rivalry is highlighted.' : 'Rival Lines disabled.');
+        }
+    };
+
+    function ensureKOConfettiStartsOff() {
+        const btn = document.getElementById('koConfettiBtn');
+        if (btn && btn.innerText.includes('ON')) {
+            btn.innerText = 'KO Confetti: OFF';
+            btn.classList.remove('active');
+        }
+    }
+
+    function applyRageMode() {
+        if (!farrelRageModeEnabled || isSetupPhase || gameOverTriggered) return;
+        mainCombatFighters().forEach(e => {
+            const ratio = (e.maxHp || 1) > 0 ? e.hp / e.maxHp : 1;
+            const active = ratio > 0 && ratio <= 0.32;
+            e.farrelRageActive = active;
+            if (!active) return;
+
+            const target = findNearestEnemyForFeature(e);
+            if (target) {
+                const angle = Math.atan2(target.y - e.y, target.x - e.x);
+                e.vx += Math.cos(angle) * 0.055;
+                e.vy += Math.sin(angle) * 0.055;
+            }
+
+            if (frameCount % 24 === 0 && typeof spawnParticles === 'function') {
+                spawnParticles(e.x, e.y, '#ff4757', 2);
+            }
+        });
+    }
+
+    function spawnPowerDrop() {
+        if (!farrelPowerDropsEnabled || isSetupPhase || gameOverTriggered) return;
+        if (!Array.isArray(entities) || mainCombatFighters().length < 2) return;
+        if (farrelPowerDrops.length >= 8) return;
+
+        const margin = 70;
+        const dropType = POWER_DROP_TYPES[Math.floor(Math.random() * POWER_DROP_TYPES.length)];
+        farrelPowerDrops.push({
+            ...dropType,
+            id: `drop-${frameCount}-${Math.random().toString(16).slice(2)}`,
+            x: margin + Math.random() * Math.max(10, canvas.width - margin * 2),
+            y: margin + Math.random() * Math.max(10, canvas.height - margin * 2),
+            radius: 17,
+            life: 60 * 18,
+            pulse: Math.random() * Math.PI * 2
+        });
+    }
+
+    function applyPowerDropEffect(fighter, drop) {
+        if (!fighter || !drop) return;
+        const now = frameCount || 0;
+
+        if (drop.type === 'heal') {
+            fighter.hp = Math.min(fighter.maxHp || fighter.hp, fighter.hp + Math.max(14, (fighter.maxHp || 80) * 0.28));
+            if (typeof spawnDamageText === 'function') spawnDamageText(fighter.x, fighter.y - 38, 'HEAL DROP', drop.color, true);
+        }
+
+        if (drop.type === 'speed') {
+            fighter.farrelSpeedBoostUntil = now + 60 * 7;
+            if (typeof spawnDamageText === 'function') spawnDamageText(fighter.x, fighter.y - 38, 'SPEED DROP', drop.color, true);
+        }
+
+        if (drop.type === 'damage') {
+            fighter.farrelDamageBoostUntil = now + 60 * 7;
+            if (typeof spawnDamageText === 'function') spawnDamageText(fighter.x, fighter.y - 38, 'DAMAGE DROP', drop.color, true);
+        }
+
+        if (drop.type === 'shield') {
+            fighter.farrelShieldBoostUntil = now + 60 * 7;
+            if (typeof spawnDamageText === 'function') spawnDamageText(fighter.x, fighter.y - 38, 'SHIELD DROP', drop.color, true);
+        }
+
+        if (typeof spawnParticles === 'function') spawnParticles(drop.x, drop.y, drop.color, 16);
+        if (typeof playSound === 'function') playSound('equip', 0.5);
+    }
+
+    function updatePowerDrops() {
+        if (!farrelPowerDropsEnabled || isSetupPhase || gameOverTriggered) return;
+
+        if (!nextPowerDropFrame || frameCount >= nextPowerDropFrame) {
+            spawnPowerDrop();
+            nextPowerDropFrame = frameCount + 60 * (9 + Math.floor(Math.random() * 6));
+        }
+
+        const fighters = mainCombatFighters();
+        farrelPowerDrops.forEach(drop => {
+            drop.life--;
+            fighters.forEach(f => {
+                if (drop.dead) return;
+                const hitDist = (f.radius || 20) + (drop.radius || 17);
+                if (safeDist(f, drop) <= hitDist) {
+                    applyPowerDropEffect(f, drop);
+                    drop.dead = true;
+                }
+            });
+        });
+
+        farrelPowerDrops = farrelPowerDrops.filter(drop => !drop.dead && drop.life > 0);
+
+        // Speed boosts gently help a fighter move toward the nearest enemy without overriding their AI.
+        fighters.forEach(f => {
+            if ((f.farrelSpeedBoostUntil || 0) <= frameCount) return;
+            const target = findNearestEnemyForFeature(f);
+            if (!target) return;
+            const angle = Math.atan2(target.y - f.y, target.x - f.x);
+            f.vx += Math.cos(angle) * 0.04;
+            f.vy += Math.sin(angle) * 0.04;
+        });
+    }
+
+    function getAliveByStatId(id) {
+        return mainCombatFighters().find(e => String(e.id) === String(id)) || null;
+    }
+
+    function getRivalPair() {
+        const stats = Object.values(battleStats || {});
+        if (stats.length === 0) return null;
+
+        const topDealer = stats
+            .filter(stat => stat && (stat.damageDealt || 0) > 0)
+            .sort((a, b) => (b.damageDealt || 0) - (a.damageDealt || 0))[0];
+
+        if (!topDealer) return null;
+
+        const a = getAliveByStatId(topDealer.id);
+        if (!a) return null;
+
+        let b = null;
+        const enemies = mainCombatFighters().filter(e => e.team !== a.team && e.id !== a.id);
+        if (enemies.length === 0) return null;
+
+        // Prefer the enemy taking the most damage, then fall back to nearest enemy.
+        const enemyStats = stats
+            .filter(stat => enemies.some(e => String(e.id) === String(stat.id)))
+            .sort((s1, s2) => (s2.damageTaken || 0) - (s1.damageTaken || 0));
+
+        if (enemyStats[0]) b = getAliveByStatId(enemyStats[0].id);
+        if (!b) {
+            b = enemies.sort((e1, e2) => safeDist(a, e1) - safeDist(a, e2))[0];
+        }
+
+        return b ? { a, b } : null;
+    }
+
+    function drawPowerDrop(drop) {
+        const pt = worldToScreenPoint(drop.x, drop.y);
+        if (!isOnScreen(pt)) return;
+        const r = Math.max(8, (drop.radius || 17) * pt.z);
+        const pulse = 1 + Math.sin((frameCount || 0) * 0.14 + (drop.pulse || 0)) * 0.12;
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = Math.min(1, Math.max(0.25, drop.life / 60));
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = drop.color;
+        ctx.fillStyle = drop.color;
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, r * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.font = `900 ${Math.max(12, r * 0.9)}px Segoe UI, Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.strokeText(drop.icon, pt.x, pt.y);
+        ctx.fillText(drop.icon, pt.x, pt.y);
+        ctx.restore();
+    }
+
+    function drawRageAndBoostOverlays() {
+        const fighters = mainCombatFighters();
+        const now = frameCount || 0;
+
+        fighters.forEach(e => {
+            const activeRage = farrelRageModeEnabled && e.farrelRageActive;
+            const speed = (e.farrelSpeedBoostUntil || 0) > now;
+            const damage = (e.farrelDamageBoostUntil || 0) > now;
+            const shield = (e.farrelShieldBoostUntil || 0) > now;
+            if (!activeRage && !speed && !damage && !shield) return;
+
+            const pt = worldToScreenPoint(e.x, e.y);
+            if (!isOnScreen(pt)) return;
+            const baseRadius = Math.max(10, ((e.radius || 20) + 8) * pt.z);
+
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.lineWidth = 3;
+            ctx.globalAlpha = 0.82;
+            if (activeRage) {
+                ctx.strokeStyle = '#ff4757';
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, baseRadius + Math.sin(now * 0.2) * 4, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            if (shield) {
+                ctx.strokeStyle = '#f1c40f';
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, baseRadius + 6, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            if (speed || damage) {
+                ctx.fillStyle = damage ? '#ff4757' : '#00c3ff';
+                ctx.font = `900 ${Math.max(10, 12 * pt.z)}px Segoe UI, Arial`;
+                ctx.textAlign = 'center';
+                ctx.fillText(damage ? 'DMG' : 'SPD', pt.x, pt.y - baseRadius - 8);
+            }
+            ctx.restore();
+        });
+    }
+
+    function drawRivalLines() {
+        if (!farrelRivalLinesEnabled || isSetupPhase || gameOverTriggered) return;
+        const pair = getRivalPair();
+        if (!pair) return;
+        const a = worldToScreenPoint(pair.a.x, pair.a.y);
+        const b = worldToScreenPoint(pair.b.x, pair.b.y);
+        if (!isOnScreen(a, 220) && !isOnScreen(b, 220)) return;
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 0.72 + Math.sin((frameCount || 0) * 0.08) * 0.18;
+        ctx.strokeStyle = '#ffbe76';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([10, 8]);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '900 12px Segoe UI, Arial';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffbe76';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        const lx = (a.x + b.x) / 2;
+        const ly = (a.y + b.y) / 2;
+        ctx.strokeText('RIVALRY', lx, ly - 8);
+        ctx.fillText('RIVALRY', lx, ly - 8);
+        ctx.restore();
+    }
+
+    if (typeof damageEntity === 'function' && !damageEntity.__farrelFunPack2Wrapped) {
+        const oldDamageEntity = damageEntity;
+        damageEntity = function farrelFunPack2DamageEntity(victim, amount, impactX, impactY, source) {
+            if (amount > 0) {
+                if (source && source.hp > 0) {
+                    if (farrelRageModeEnabled && source.farrelRageActive) amount *= 1.18;
+                    if ((source.farrelDamageBoostUntil || 0) > (frameCount || 0)) amount *= 1.25;
+                }
+
+                if (victim && (victim.farrelShieldBoostUntil || 0) > (frameCount || 0)) {
+                    amount *= 0.62;
+                    if ((frameCount || 0) % 12 === 0 && typeof spawnDamageText === 'function') {
+                        spawnDamageText(victim.x, victim.y - 35, 'SHIELD', '#f1c40f', true);
+                    }
+                }
+            }
+            return oldDamageEntity.call(this, victim, amount, impactX, impactY, source);
+        };
+        damageEntity.__farrelFunPack2Wrapped = true;
+        window.damageEntity = damageEntity;
+    }
+
+    if (typeof resetPositions === 'function' && !resetPositions.__farrelFunPack2Wrapped) {
+        const oldResetPositions = resetPositions;
+        resetPositions = function farrelFunPack2ResetPositions() {
+            farrelPowerDrops = [];
+            nextPowerDropFrame = 0;
+            return oldResetPositions.apply(this, arguments);
+        };
+        resetPositions.__farrelFunPack2Wrapped = true;
+        window.resetPositions = resetPositions;
+    }
+
+    if (typeof beginBattle === 'function' && !beginBattle.__farrelFunPack2Wrapped) {
+        const oldBeginBattle = beginBattle;
+        beginBattle = function farrelFunPack2BeginBattle() {
+            farrelPowerDrops = [];
+            nextPowerDropFrame = frameCount + 240;
+            return oldBeginBattle.apply(this, arguments);
+        };
+        beginBattle.__farrelFunPack2Wrapped = true;
+        window.beginBattle = beginBattle;
+    }
+
+    if (typeof update === 'function' && !update.__farrelFunPack2Wrapped) {
+        const oldUpdate = update;
+        update = function farrelFunPack2Update() {
+            const result = oldUpdate.apply(this, arguments);
+            applyRageMode();
+            updatePowerDrops();
+            return result;
+        };
+        update.__farrelFunPack2Wrapped = true;
+        window.update = update;
+    }
+
+    if (typeof draw === 'function' && !draw.__farrelFunPack2Wrapped) {
+        const oldDraw = draw;
+        draw = function farrelFunPack2Draw() {
+            const result = oldDraw.apply(this, arguments);
+            if (farrelPowerDropsEnabled) farrelPowerDrops.forEach(drawPowerDrop);
+            drawRageAndBoostOverlays();
+            drawRivalLines();
+            return result;
+        };
+        draw.__farrelFunPack2Wrapped = true;
+        window.draw = draw;
+    }
+
+    function bootFunPackTwo() {
+        ensureKOConfettiStartsOff();
+        setToggleButton('rageModeBtn', farrelRageModeEnabled, 'Rage Mode: ON', 'Rage Mode: OFF');
+        setToggleButton('powerDropsBtn', farrelPowerDropsEnabled, 'Power Drops: ON', 'Power Drops: OFF');
+        setToggleButton('rivalLinesBtn', farrelRivalLinesEnabled, 'Rival Lines: ON', 'Rival Lines: OFF');
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootFunPackTwo);
+    } else {
+        bootFunPackTwo();
+    }
+})();
+
+
+
+// --- TOURNAMENT REVAMP + PET SIMULATOR REMOVAL PATCH ---
+// Pet Simulator was an underdeveloped alternate ruleset. It is now removed from the UI so the main game stays clean.
+// The old pet helper code is left dormant for save compatibility, but no selector exposes it anymore.
+(function tournamentRevampAndPetRemovalPatch() {
+    const TOURNEY_ROUND_NAMES_V2 = ['Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals', 'Final'];
+
+    function safeGet(id) {
+        return document.getElementById(id);
+    }
+
+    function removePetOptionsFromSelects() {
+        document.querySelectorAll('option[value="pet"]').forEach(opt => opt.remove());
+
+        const mainMode = safeGet('modeSelect');
+        if (mainMode && mainMode.value === 'pet') mainMode.value = 'team';
+
+        const fsMode = safeGet('fsModeSelect');
+        if (fsMode && fsMode.value === 'pet') fsMode.value = 'team';
+    }
+
+    function getTournamentBracketSize() {
+        const el = safeGet('tourneyBracketSize');
+        const value = el ? parseInt(el.value, 10) : 16;
+        return [8, 16, 32].includes(value) ? value : 16;
+    }
+
+    function getTournamentTeamSize() {
+        const el = safeGet('tourneyTeamSize');
+        return clamp(parseInt(el ? el.value : 5, 10) || 5, 1, 30);
+    }
+
+    function getTournamentRuleset() {
+        const el = safeGet('tourneyRuleset');
+        return el ? el.value : 'balanced';
+    }
+
+    function getTournamentSeedStyle() {
+        const el = safeGet('tourneySeedStyle');
+        return el ? el.value : 'shuffle';
+    }
+
+    function getTournamentRoundName(roundIndex, totalTeams) {
+        const sizeAtRound = Math.max(1, totalTeams / Math.pow(2, roundIndex));
+        if (sizeAtRound === 2) return 'Final';
+        if (sizeAtRound === 4) return 'Semifinals';
+        if (sizeAtRound === 8) return 'Quarterfinals';
+        if (sizeAtRound === 16) return 'Round of 16';
+        if (sizeAtRound === 32) return 'Round of 32';
+        return TOURNEY_ROUND_NAMES_V2[roundIndex] || `Round ${roundIndex + 1}`;
+    }
+
+    function getTournamentColor(seed, total) {
+        const hue = Math.round((seed * 360 / Math.max(total, 1) + 23) % 360);
+        return `hsl(${hue}, 78%, 48%)`;
+    }
+
+    function getTournamentRosterText(roster) {
+        return (roster || []).map(t => titleCaseName(t)).join(', ');
+    }
+
+    function getTournamentLegalFighters() {
+        return (typeof FIGHTER_OPTIONS !== 'undefined' ? FIGHTER_OPTIONS : Object.keys(FIGHTER_DATA || {}))
+            .filter(type => type && FIGHTER_DATA[type] && !['turret', 'boid', 'binder', 'mammoth_mount'].includes(type));
+    }
+
+    function getRandomTournamentRoster(size) {
+        const options = getTournamentLegalFighters();
+        const roster = [];
+        for (let i = 0; i < size; i++) {
+            roster.push(options[Math.floor(Math.random() * options.length)] || 'unarmed');
+        }
+        return roster;
+    }
+
+    function normalizeRoster(roster, size) {
+        const options = getTournamentLegalFighters();
+        let clean = (roster || [])
+            .map(v => String(v || '').toLowerCase().trim())
+            .filter(v => FIGHTER_DATA[v]);
+
+        while (clean.length < size) {
+            clean.push(options[Math.floor(Math.random() * options.length)] || 'unarmed');
+        }
+
+        return clean.slice(0, size);
+    }
+
+    function makeTournamentTeam(name, roster, seedIndex, isCustom = false) {
+        const bracketSize = getTournamentBracketSize();
+        const idPrefix = isCustom ? 'custom' : 'bot';
+        return {
+            id: `${idPrefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            name: String(name || generateTeamName()).toUpperCase(),
+            roster: normalizeRoster(roster, getTournamentTeamSize()),
+            color: isCustom ? '#00c3ff' : getTournamentColor(seedIndex, bracketSize),
+            wins: 0,
+            losses: 0,
+            seed: seedIndex + 1,
+            isCustom
+        };
+    }
+
+    function getCurrentP1RosterForTournament() {
+        const inputs = Array.from(document.querySelectorAll('.p1-input'));
+        const values = inputs.map(input => input.value).filter(Boolean);
+        return normalizeRoster(values, getTournamentTeamSize());
+    }
+
+    function updatePoolUI() {
+        const bracketSize = getTournamentBracketSize();
+        const counter = safeGet('poolCounter');
+        if (counter) counter.innerText = `${customTeamPool.length}/${bracketSize}`;
+
+        const poolList = safeGet('tourneyPoolList');
+        if (poolList) {
+            if (!customTeamPool.length) {
+                poolList.innerHTML = '<div style="opacity:.7;font-weight:800;text-align:center;padding:12px;">No teams added yet. Add P1 or bot teams, then start a bracket.</div>';
+            } else {
+                poolList.innerHTML = customTeamPool.map((team, index) => `
+                    <div class="tourney-team-card" style="--team-color:${escapeHtml(team.color || getTournamentColor(index, bracketSize))};">
+                        <div class="tourney-seed-dot"></div>
+                        <div style="min-width:0;">
+                            <div class="tourney-team-name">${index + 1}. ${escapeHtml(team.name)}</div>
+                            <div class="tourney-team-roster">${escapeHtml(getTournamentRosterText(team.roster))}</div>
+                        </div>
+                        <button class="tourney-mini-btn" onclick="removeTournamentPoolTeam(${index})">Remove</button>
+                    </div>
+                `).join('');
+            }
+        }
+
+        updateTournamentUI();
+    }
+
+    function removeTournamentPoolTeam(index) {
+        if (index < 0 || index >= customTeamPool.length) return;
+        customTeamPool.splice(index, 1);
+        updatePoolUI();
+    }
+
+    function syncTournamentTeamSizeToSquads() {
+        const size = getTournamentTeamSize();
+        const p1 = safeGet('p1Count');
+        const p2 = safeGet('p2Count');
+
+        if (p1) p1.value = size;
+        if (p2) p2.value = size;
+
+        if (typeof updateSquadUI === 'function') updateSquadUI();
+        updateTournamentUI();
+    }
+
+    function registerP1ToTourney() {
+        const bracketSize = getTournamentBracketSize();
+        if (customTeamPool.length >= bracketSize) {
+            return showCustomMessage('Tournament Pool Full', `This bracket only has ${bracketSize} slots.`);
+        }
+
+        const roster = getCurrentP1RosterForTournament();
+        const defaultName = `Player Team ${customTeamPool.length + 1}`;
+        const entered = prompt('Enter tournament team name:', defaultName);
+        if (entered === null) return;
+
+        customTeamPool.push(makeTournamentTeam(entered || defaultName, roster, customTeamPool.length, true));
+        if (typeof playSound === 'function') playSound('zap');
+        updatePoolUI();
+        showCustomMessage('Team Added', `${entered || defaultName} joined the tournament pool.`);
+    }
+
+    function addRandomTournamentTeam() {
+        const bracketSize = getTournamentBracketSize();
+        if (customTeamPool.length >= bracketSize) {
+            return showCustomMessage('Tournament Pool Full', `This bracket only has ${bracketSize} slots.`);
+        }
+
+        customTeamPool.push(makeTournamentTeam(generateTeamName(), getRandomTournamentRoster(getTournamentTeamSize()), customTeamPool.length, false));
+        updatePoolUI();
+    }
+
+    function fillTournamentPool() {
+        const bracketSize = getTournamentBracketSize();
+        while (customTeamPool.length < bracketSize) {
+            addRandomTournamentTeam();
+        }
+        showCustomMessage('Bracket Filled', `${bracketSize} teams are ready.`);
+    }
+
+    function clearTourneyPool() {
+        customTeamPool = [];
+        updatePoolUI();
+        showCustomMessage('Cleared', 'Tournament pool emptied.');
+    }
+
+    function buildTournamentFirstRound(teams) {
+        const round = [];
+        for (let i = 0; i < teams.length; i += 2) {
+            round.push({
+                p1: teams[i],
+                p2: teams[i + 1],
+                winner: null,
+                score: null,
+                resultReason: null,
+                playedMode: null
+            });
+        }
+        return round;
+    }
+
+    function initTournament() {
+        const bracketSize = getTournamentBracketSize();
+        const teamSize = getTournamentTeamSize();
+        let newTeams = customTeamPool.map((team, index) => ({
+            ...JSON.parse(JSON.stringify(team)),
+            roster: normalizeRoster(team.roster, teamSize),
+            seed: index + 1,
+            color: team.color || getTournamentColor(index, bracketSize)
+        }));
+
+        while (newTeams.length < bracketSize) {
+            newTeams.push(makeTournamentTeam(generateTeamName(), getRandomTournamentRoster(teamSize), newTeams.length, false));
+        }
+
+        if (newTeams.length > bracketSize) {
+            newTeams = newTeams.slice(0, bracketSize);
+        }
+
+        if (getTournamentSeedStyle() === 'shuffle') {
+            newTeams.sort(() => Math.random() - 0.5);
+        }
+
+        newTeams.forEach((team, index) => {
+            team.seed = index + 1;
+            if (!team.color) team.color = getTournamentColor(index, bracketSize);
+        });
+
+        tournamentData = {
+            active: true,
+            teams: newTeams,
+            bracketSize,
+            teamSize,
+            ruleset: getTournamentRuleset(),
+            seedStyle: getTournamentSeedStyle(),
+            round: 0,
+            matches: [buildTournamentFirstRound(newTeams)],
+            currentMatchIndex: 0,
+            champion: null,
+            history: [],
+            startedAt: Date.now()
+        };
+
+        isSetupPhase = true;
+        isTournamentMatch = false;
+        gameOverTriggered = false;
+        updateTournamentUI();
+        saveTournament(false);
+        showCustomMessage('Tournament Started', `${bracketSize} teams. ${teamSize} fighters per team.`);
+        if (typeof playSound === 'function') playSound('zap');
+    }
+
+    function getNextTournamentMatch() {
+        if (!tournamentData || !tournamentData.active) return null;
+
+        while (tournamentData.active) {
+            const currentRound = tournamentData.matches[tournamentData.round];
+            if (!currentRound) return null;
+
+            const nextIndex = currentRound.findIndex(match => !match.winner);
+            if (nextIndex !== -1) {
+                tournamentData.currentMatchIndex = nextIndex;
+                return currentRound[nextIndex];
+            }
+
+            if (currentRound.length === 1) {
+                tournamentData.champion = currentRound[0].winner;
+                updateTournamentUI();
+                saveTournament(false);
+                return null;
+            }
+
+            advanceRound();
+        }
+
+        return null;
+    }
+
+    function getTournamentTeamPower(team) {
+        const ruleset = tournamentData.ruleset || getTournamentRuleset();
+        const roster = team.roster || [];
+        let power = 0;
+
+        roster.forEach(type => {
+            const data = FIGHTER_DATA[type] || FIGHTER_DATA.unarmed || { hp: 100 };
+            const hp = Number(data.hp) || 100;
+            let classBonus = 0;
+
+            if (['bombman', 'mammoth', 'devourer', 'fight knight'].includes(type)) classBonus += 75;
+            if (['laser', 'wizard', 'missile', 'soldier', 'bow', 'spearer'].includes(type)) classBonus += 45;
+            if (['spider', 'samurai', 'rogue', 'trapper', 'scythe'].includes(type)) classBonus += 35;
+            if (['healer', 'bard', 'engineer', 'necromancer', 'duplicator'].includes(type)) classBonus += 30;
+
+            power += hp + classBonus;
+        });
+
+        const variety = new Set(roster).size;
+        power += variety * 10;
+
+        if (ruleset === 'survival') {
+            power += roster.reduce((sum, type) => sum + ((FIGHTER_DATA[type]?.hp || 100) * 0.35), 0);
+        }
+
+        const chaos = ruleset === 'chaos' ? 0.55 : 0.22;
+        power *= (1 - chaos / 2) + Math.random() * chaos;
+
+        return power;
+    }
+
+    function markTournamentWinner(match, winner, mode, scoreText) {
+        match.winner = winner;
+        match.playedMode = mode;
+        match.score = scoreText || '';
+        match.resultReason = `${winner.name} advanced by ${mode === 'watch' ? 'watched battle' : 'simulation'}.`;
+
+        winner.wins = (winner.wins || 0) + 1;
+        const loser = winner === match.p1 ? match.p2 : match.p1;
+        if (loser) loser.losses = (loser.losses || 0) + 1;
+
+        if (!tournamentData.history) tournamentData.history = [];
+        tournamentData.history.push({
+            round: tournamentData.round,
+            match: tournamentData.currentMatchIndex,
+            p1: match.p1.name,
+            p2: match.p2.name,
+            winner: winner.name,
+            mode,
+            score: scoreText || '',
+            time: Date.now()
+        });
+    }
+
+    function playNextMatch(mode) {
+        if (!tournamentData || !tournamentData.active) {
+            return showCustomMessage('Tournament', 'Start a new tournament first.');
+        }
+
+        const match = getNextTournamentMatch();
+
+        if (!match) {
+            const champion = tournamentData.champion;
+            if (champion) {
+                showCustomMessage('Champion!', `${champion.name} wins the tournament!`);
+            } else {
+                showCustomMessage('Tournament', 'No playable match found.');
+            }
+            return;
+        }
+
+        if (mode === 'sim') {
+            const score1 = getTournamentTeamPower(match.p1);
+            const score2 = getTournamentTeamPower(match.p2);
+            const winner = score1 >= score2 ? match.p1 : match.p2;
+            markTournamentWinner(match, winner, 'sim', `${Math.round(score1)} - ${Math.round(score2)}`);
+            updateTournamentUI();
+            saveTournament(false);
+            showCustomMessage('Match Simulated', `${winner.name} advances.`);
+            return;
+        }
+
+        if (mode === 'watch') {
+            loadTournamentTeams(match.p1, match.p2);
+        }
+    }
+
+    function simulateTournamentRound() {
+        if (!tournamentData || !tournamentData.active) {
+            return showCustomMessage('Tournament', 'Start a tournament first.');
+        }
+
+        const round = tournamentData.matches[tournamentData.round];
+        if (!round) return;
+
+        let simulated = 0;
+        round.forEach((match, index) => {
+            if (match.winner) return;
+            tournamentData.currentMatchIndex = index;
+            const score1 = getTournamentTeamPower(match.p1);
+            const score2 = getTournamentTeamPower(match.p2);
+            const winner = score1 >= score2 ? match.p1 : match.p2;
+            markTournamentWinner(match, winner, 'sim', `${Math.round(score1)} - ${Math.round(score2)}`);
+            simulated++;
+        });
+
+        updateTournamentUI();
+        saveTournament(false);
+        showCustomMessage('Round Simulated', `${simulated} match${simulated === 1 ? '' : 'es'} resolved.`);
+    }
+
+    function simulateFullTournament() {
+        if (!tournamentData || !tournamentData.active) {
+            return showCustomMessage('Tournament', 'Start a tournament first.');
+        }
+
+        let guard = 0;
+        while (!tournamentData.champion && guard < 200) {
+            const match = getNextTournamentMatch();
+            if (!match) break;
+
+            const score1 = getTournamentTeamPower(match.p1);
+            const score2 = getTournamentTeamPower(match.p2);
+            const winner = score1 >= score2 ? match.p1 : match.p2;
+            markTournamentWinner(match, winner, 'sim', `${Math.round(score1)} - ${Math.round(score2)}`);
+            guard++;
+        }
+
+        updateTournamentUI();
+        saveTournament(false);
+
+        if (tournamentData.champion) {
+            showCustomMessage('Champion!', `${tournamentData.champion.name} wins the tournament!`);
+        } else {
+            showCustomMessage('Tournament', 'Simulation paused before a champion was found.');
+        }
+    }
+
+    function advanceRound() {
+        const currentRound = tournamentData.matches[tournamentData.round];
+        if (!currentRound || currentRound.some(match => !match.winner)) return;
+
+        if (currentRound.length === 1) {
+            tournamentData.champion = currentRound[0].winner;
+            updateTournamentUI();
+            saveTournament(false);
+            return;
+        }
+
+        const nextRound = [];
+        for (let i = 0; i < currentRound.length; i += 2) {
+            nextRound.push({
+                p1: currentRound[i].winner,
+                p2: currentRound[i + 1].winner,
+                winner: null,
+                score: null,
+                resultReason: null,
+                playedMode: null
+            });
+        }
+
+        tournamentData.round++;
+        tournamentData.matches.push(nextRound);
+        tournamentData.currentMatchIndex = 0;
+        updateTournamentUI();
+        saveTournament(false);
+    }
+
+    function saveTournament(showToast = true) {
+        if (!tournamentData || !tournamentData.active) {
+            if (showToast) showCustomMessage('Tournament', 'No active tournament to save.');
+            return;
+        }
+
+        localStorage.setItem('ballBattle_tournament_save', JSON.stringify(tournamentData));
+
+        if (showToast) {
+            showCustomMessage('Saved', 'Tournament progress saved.');
+        }
+
+        updateTournamentUI();
+    }
+
+    function loadTournament() {
+        const data = localStorage.getItem('ballBattle_tournament_save');
+
+        if (!data) {
+            return showCustomMessage('Load Failed', 'No saved tournament found.');
+        }
+
+        try {
+            tournamentData = JSON.parse(data);
+            if (!tournamentData.history) tournamentData.history = [];
+            if (!tournamentData.bracketSize) tournamentData.bracketSize = tournamentData.teams ? tournamentData.teams.length : 16;
+            if (!tournamentData.teamSize) tournamentData.teamSize = getTournamentTeamSize();
+
+            const bracketSizeEl = safeGet('tourneyBracketSize');
+            if (bracketSizeEl && tournamentData.bracketSize) bracketSizeEl.value = String(tournamentData.bracketSize);
+
+            const teamSizeEl = safeGet('tourneyTeamSize');
+            if (teamSizeEl && tournamentData.teamSize) teamSizeEl.value = String(tournamentData.teamSize);
+
+            const rulesEl = safeGet('tourneyRuleset');
+            if (rulesEl && tournamentData.ruleset) rulesEl.value = tournamentData.ruleset;
+
+            const modeSelect = safeGet('modeSelect');
+            if (modeSelect) modeSelect.value = 'tournament';
+
+            toggleGameMode();
+            updateTournamentUI();
+            showCustomMessage('Loaded', 'Tournament save restored.');
+        } catch (err) {
+            console.error(err);
+            showCustomMessage('Load Failed', 'The saved tournament data was corrupted.');
+        }
+    }
+
+    function exitTournament() {
+        isTournamentMatch = false;
+        isSetupPhase = true;
+        const modeSelect = safeGet('modeSelect');
+        if (modeSelect) modeSelect.value = 'team';
+        toggleGameMode();
+        resetPositions();
+    }
+
+    function loadTournamentTeams(team1, team2) {
+        entities = [];
+        obstacles = [];
+        projectiles = [];
+        decals = [];
+
+        isTournamentMatch = true;
+        isSetupPhase = true;
+        gameOverTriggered = false;
+
+        const totalFighters = (team1.roster?.length || 0) + (team2.roster?.length || 0);
+        const mapSelect = safeGet('mapSizeSelect');
+
+        if (mapSelect && totalFighters >= 20 && ['small', 'normal'].includes(mapSelect.value)) {
+            mapSelect.value = totalFighters >= 50 ? 'huge' : 'large';
+        }
+
+        if (typeof changeMapSize === 'function') changeMapSize();
+
+        const spawnTeam = (team, teamNumber, sideKey) => {
+            (team.roster || []).forEach((type, index) => {
+                const fallbackX = teamNumber === 1 ? canvas.width * 0.22 : canvas.width * 0.78;
+                const fallbackY = 80 + index * 42;
+                const fighter = createFighter(type, fallbackX, fallbackY, teamNumber, false, null, null, sideKey, index);
+                const pos = typeof getSafeSpawnPos === 'function'
+                    ? getSafeSpawnPos(teamNumber)
+                    : { x: fallbackX, y: fallbackY };
+
+                fighter.x = pos.x;
+                fighter.y = pos.y;
+                fighter.color = team.color;
+                fighter.tournamentTeamName = team.name;
+                fighter.displayName = `${team.name} ${index + 1}`;
+                entities.push(fighter);
+            });
+        };
+
+        spawnTeam(team1, 1, 'p1');
+        spawnTeam(team2, 2, 'p2');
+
+        if (typeof randomizeObstacles === 'function') randomizeObstacles();
+
+        battleStartFrame = frameCount || 0;
+        battleTotalKills = 0;
+        battleStats = {};
+        entities.forEach(e => {
+            if (typeof ensureBattleStat === 'function') ensureBattleStat(e);
+        });
+
+        isSetupPhase = false;
+        gameActive = true;
+
+        if (typeof resetCamera === 'function') resetCamera();
+        if (typeof updateLiveCounts === 'function') updateLiveCounts();
+
+        resultModal.style.display = 'none';
+        playBGM('battle');
+
+        const title = safeGet('mainTitle');
+        if (title) {
+            title.innerHTML = `<span style="color:${team1.color}">${escapeHtml(team1.name)}</span> VS <span style="color:${team2.color}">${escapeHtml(team2.name)}</span>`;
+        }
+
+        updateTournamentUI();
+    }
+
+    function updateTournamentUI() {
+        removePetOptionsFromSelects();
+
+        const bracketSize = getTournamentBracketSize();
+        const status = safeGet('tourneyStatus');
+        const champ = safeGet('tourneyChampionBanner');
+        const bracketPanel = safeGet('tourneyBracketPanel');
+
+        const counter = safeGet('poolCounter');
+        if (counter) counter.innerText = `${customTeamPool.length}/${bracketSize}`;
+
+        if (!tournamentData || !tournamentData.active) {
+            if (status) status.innerText = `No active tournament. Pool: ${customTeamPool.length}/${bracketSize}.`;
+            if (champ) champ.innerText = 'No champion yet';
+            if (bracketPanel) bracketPanel.innerHTML = '<div style="opacity:.7;font-weight:800;text-align:center;padding:14px;">Start a new bracket to see matches here.</div>';
+            return;
+        }
+
+        const roundName = getTournamentRoundName(tournamentData.round, tournamentData.bracketSize || bracketSize);
+        const currentRound = tournamentData.matches[tournamentData.round] || [];
+        const nextIndex = currentRound.findIndex(match => !match.winner);
+        const champion = tournamentData.champion || (currentRound.length === 1 && currentRound[0].winner ? currentRound[0].winner : null);
+
+        if (champ) {
+            champ.innerText = champion ? `Champion: ${champion.name}` : 'No champion yet';
+        }
+
+        if (status) {
+            if (champion) {
+                status.innerText = `Champion crowned: ${champion.name}.`;
+            } else if (nextIndex === -1) {
+                status.innerText = `${roundName} complete. Press Sim/Watch Next to advance.`;
+            } else {
+                const match = currentRound[nextIndex];
+                status.innerText = `${roundName} — Match ${nextIndex + 1}: ${match.p1.name} vs ${match.p2.name}`;
+            }
+        }
+
+        renderTournamentBracketPanel();
+    }
+
+    function renderTournamentBracketPanel() {
+        const panel = safeGet('tourneyBracketPanel');
+        if (!panel) return;
+
+        if (!tournamentData || !tournamentData.active || !tournamentData.matches) {
+            panel.innerHTML = '<div style="opacity:.7;font-weight:800;text-align:center;padding:14px;">Start a tournament first.</div>';
+            return;
+        }
+
+        const nextRound = tournamentData.round;
+        const nextMatchIndex = (tournamentData.matches[nextRound] || []).findIndex(match => !match.winner);
+
+        panel.innerHTML = tournamentData.matches.map((round, rIndex) => {
+            const title = getTournamentRoundName(rIndex, tournamentData.bracketSize || tournamentData.teams.length);
+            const matches = round.map((match, mIndex) => {
+                const isCurrent = rIndex === nextRound && mIndex === nextMatchIndex && !match.winner && !tournamentData.champion;
+                const done = !!match.winner;
+                const p1Winner = match.winner && match.winner.id === match.p1.id;
+                const p2Winner = match.winner && match.winner.id === match.p2.id;
+
+                return `
+                    <div class="tourney-match-card ${isCurrent ? 'current' : ''} ${done ? 'done' : ''}">
+                        <div class="tourney-side">
+                            <div class="tourney-side-name ${p1Winner ? 'winner' : ''}" style="color:${escapeHtml(match.p1.color || '#333')}">${escapeHtml(match.p1.name)}</div>
+                            <div class="tourney-team-roster">${escapeHtml(getTournamentRosterText(match.p1.roster))}</div>
+                        </div>
+                        <div class="tourney-vs">${done ? '✓' : 'VS'}</div>
+                        <div class="tourney-side">
+                            <div class="tourney-side-name ${p2Winner ? 'winner' : ''}" style="color:${escapeHtml(match.p2.color || '#333')}">${escapeHtml(match.p2.name)}</div>
+                            <div class="tourney-team-roster">${escapeHtml(getTournamentRosterText(match.p2.roster))}</div>
+                        </div>
+                        <div class="tourney-match-meta">${done ? `Winner: ${escapeHtml(match.winner.name)} ${match.score ? `(${escapeHtml(match.score)})` : ''}` : (isCurrent ? 'Next match' : 'Waiting')}</div>
+                    </div>
+                `;
+            }).join('');
+
+            return `<div class="tourney-round-title">${escapeHtml(title)}</div>${matches}`;
+        }).join('');
+    }
+
+    function drawTournamentBracketV2() {
+        const isDark = document.body.classList.contains('dark-mode');
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        grad.addColorStop(0, isDark ? '#111827' : '#f8f9fa');
+        grad.addColorStop(1, isDark ? '#2d3436' : '#dfe6e9');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = isDark ? '#f1c40f' : '#111';
+        ctx.font = `900 ${Math.max(18, canvas.width * 0.035)}px "Segoe UI", Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText('TOURNAMENT BRACKET', canvas.width / 2, 42);
+
+        if (!tournamentData || !tournamentData.active) {
+            ctx.fillStyle = isDark ? '#ddd' : '#333';
+            ctx.font = 'bold 16px "Segoe UI", Arial';
+            ctx.fillText('Create a new bracket in the Tournament Hub.', canvas.width / 2, canvas.height / 2);
+            return;
+        }
+
+        const rounds = tournamentData.matches || [];
+        const totalTeams = tournamentData.bracketSize || (tournamentData.teams ? tournamentData.teams.length : 16);
+        const marginX = 24;
+        const top = 76;
+        const usableW = canvas.width - marginX * 2;
+        const usableH = canvas.height - top - 30;
+        const colW = usableW / Math.max(rounds.length, 1);
+        const boxW = Math.min(210, colW * 0.78);
+        const boxH = Math.max(34, Math.min(52, usableH / Math.max(9, rounds[0]?.length || 8) * 0.58));
+
+        rounds.forEach((round, rIndex) => {
+            const x = marginX + rIndex * colW + (colW - boxW) / 2;
+
+            ctx.fillStyle = isDark ? '#f1c40f' : '#2f3542';
+            ctx.font = '900 12px "Segoe UI", Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(getTournamentRoundName(rIndex, totalTeams).toUpperCase(), x + boxW / 2, top - 18);
+
+            const rowGap = usableH / Math.max(round.length, 1);
+
+            round.forEach((match, mIndex) => {
+                const y = top + mIndex * rowGap + rowGap / 2 - boxH / 2;
+                const isCurrent = rIndex === tournamentData.round &&
+                    mIndex === (round.findIndex(m => !m.winner)) &&
+                    !match.winner &&
+                    !tournamentData.champion;
+
+                if (rIndex < rounds.length - 1) {
+                    const nextRound = rounds[rIndex + 1];
+                    const nextY = top + Math.floor(mIndex / 2) * (usableH / Math.max(nextRound.length, 1)) + (usableH / Math.max(nextRound.length, 1)) / 2;
+                    ctx.strokeStyle = isDark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.20)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(x + boxW, y + boxH / 2);
+                    ctx.lineTo(x + colW, nextY);
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = match.winner ? 'rgba(46,204,113,.22)' : (isDark ? '#2f3542' : '#ffffff');
+                ctx.strokeStyle = isCurrent ? '#f1c40f' : (isDark ? '#636e72' : '#111');
+                ctx.lineWidth = isCurrent ? 4 : 2;
+                ctx.shadowColor = isCurrent ? 'rgba(241,196,15,.7)' : 'rgba(0,0,0,.2)';
+                ctx.shadowBlur = isCurrent ? 12 : 4;
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(x, y, boxW, boxH, 7);
+                else ctx.rect(x, y, boxW, boxH);
+                ctx.fill();
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                const text = match.winner
+                    ? `✓ ${match.winner.name}`
+                    : `${match.p1.name} vs ${match.p2.name}`;
+
+                ctx.fillStyle = isDark ? '#fff' : '#111';
+                ctx.font = `800 ${Math.max(9, Math.min(12, boxH * 0.32))}px "Segoe UI", Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let clipped = text;
+                while (ctx.measureText(clipped).width > boxW - 14 && clipped.length > 4) {
+                    clipped = clipped.slice(0, -2);
+                }
+                if (clipped !== text) clipped += '…';
+                ctx.fillText(clipped, x + boxW / 2, y + boxH / 2);
+            });
+        });
+
+        if (tournamentData.champion) {
+            ctx.fillStyle = '#f1c40f';
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth = 3;
+            const w = Math.min(360, canvas.width * 0.7);
+            const h = 48;
+            const x = (canvas.width - w) / 2;
+            const y = canvas.height - h - 12;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(x, y, w, h, 10);
+            else ctx.rect(x, y, w, h);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#111';
+            ctx.font = '900 16px "Segoe UI", Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`CHAMPION: ${tournamentData.champion.name}`, canvas.width / 2, y + h / 2);
+        }
+    }
+
+    function bootTournamentRevamp() {
+        removePetOptionsFromSelects();
+
+        const mainMode = safeGet('modeSelect');
+        if (mainMode && mainMode.value === 'pet') mainMode.value = 'team';
+
+        const fsMode = safeGet('fsModeSelect');
+        if (fsMode && fsMode.value === 'pet') fsMode.value = 'team';
+
+        updatePoolUI();
+        updateTournamentUI();
+    }
+
+    // Override older tournament functions.
+    window.removeTournamentPoolTeam = removeTournamentPoolTeam;
+    window.syncTournamentTeamSizeToSquads = syncTournamentTeamSizeToSquads;
+    window.registerP1ToTourney = registerP1ToTourney;
+    window.addRandomTournamentTeam = addRandomTournamentTeam;
+    window.fillTournamentPool = fillTournamentPool;
+    window.clearTourneyPool = clearTourneyPool;
+    window.updatePoolUI = updatePoolUI;
+    window.initTournament = initTournament;
+    window.playNextMatch = playNextMatch;
+    window.simulateTournamentRound = simulateTournamentRound;
+    window.simulateFullTournament = simulateFullTournament;
+    window.advanceRound = advanceRound;
+    window.saveTournament = saveTournament;
+    window.loadTournament = loadTournament;
+    window.exitTournament = exitTournament;
+    window.loadTournamentTeams = loadTournamentTeams;
+    window.updateTournamentUI = updateTournamentUI;
+
+    registerP1ToTourney = registerP1ToTourney;
+    clearTourneyPool = clearTourneyPool;
+    updatePoolUI = updatePoolUI;
+    initTournament = initTournament;
+    playNextMatch = playNextMatch;
+    loadTournamentTeams = loadTournamentTeams;
+    advanceRound = advanceRound;
+    saveTournament = saveTournament;
+    loadTournament = loadTournament;
+    exitTournament = exitTournament;
+
+    if (typeof toggleGameMode === 'function' && !toggleGameMode.__tourneyRevampWrapped) {
+        const oldToggleGameMode = toggleGameMode;
+        toggleGameMode = function tournamentRevampToggleGameMode() {
+            removePetOptionsFromSelects();
+            const modeSelect = safeGet('modeSelect');
+            if (modeSelect && modeSelect.value === 'pet') modeSelect.value = 'team';
+
+            const result = oldToggleGameMode.apply(this, arguments);
+
+            if (GAME_MODE === 'pet') {
+                GAME_MODE = 'team';
+                if (modeSelect) modeSelect.value = 'team';
+                return oldToggleGameMode.apply(this, arguments);
+            }
+
+            if (GAME_MODE === 'tournament') {
+                const title = safeGet('mainTitle');
+                if (title) title.innerHTML = '<span style="color:gold">TOURNAMENT BRACKET</span>';
+
+                const tourneyControls = safeGet('tournamentControls');
+                if (tourneyControls) tourneyControls.style.display = 'flex';
+
+                updateTournamentUI();
+            }
+
+            return result;
+        };
+        toggleGameMode.__tourneyRevampWrapped = true;
+        window.toggleGameMode = toggleGameMode;
+    }
+
+    if (typeof setGameModeFromValue === 'function' && !setGameModeFromValue.__tourneyRevampWrapped) {
+        const oldSetGameModeFromValue = setGameModeFromValue;
+        setGameModeFromValue = function tournamentRevampSetGameModeFromValue(mode) {
+            if (mode === 'pet') mode = 'team';
+            return oldSetGameModeFromValue.call(this, mode);
+        };
+        setGameModeFromValue.__tourneyRevampWrapped = true;
+        window.setGameModeFromValue = setGameModeFromValue;
+    }
+
+    if (typeof updateWeaponDropdown === 'function' && !updateWeaponDropdown.__petRemovalWrapped) {
+        const oldUpdateWeaponDropdown = updateWeaponDropdown;
+        updateWeaponDropdown = function petRemovalUpdateWeaponDropdown() {
+            const result = oldUpdateWeaponDropdown.apply(this, arguments);
+            const daggerOpt = document.querySelector("#weaponSelect option[value='dagger']");
+            const gunOpt = document.querySelector("#weaponSelect option[value='gun']");
+            const scytheOpt = document.querySelector("#weaponSelect option[value='scythe']");
+            if (daggerOpt) daggerOpt.innerText = 'Place: Dagger';
+            if (gunOpt) gunOpt.innerText = 'Place: Gun';
+            if (scytheOpt) scytheOpt.innerText = 'Place: Scythe';
+            return result;
+        };
+        updateWeaponDropdown.__petRemovalWrapped = true;
+        window.updateWeaponDropdown = updateWeaponDropdown;
+    }
+
+    if (typeof endGame === 'function' && !endGame.__tourneyRevampWrapped) {
+        const oldEndGame = endGame;
+        endGame = function tournamentRevampEndGame(text) {
+            const wasTournament = !!(isTournamentMatch && tournamentData && tournamentData.active);
+            const roundIndex = wasTournament ? tournamentData.round : null;
+            const matchIndex = wasTournament ? tournamentData.currentMatchIndex : null;
+            const result = oldEndGame.apply(this, arguments);
+
+            if (wasTournament) {
+                setTimeout(() => {
+                    const round = tournamentData.matches && tournamentData.matches[roundIndex];
+                    const match = round && round[matchIndex];
+
+                    if (match && match.winner) {
+                        match.playedMode = 'watch';
+                        match.resultReason = `${match.winner.name} advanced by watched battle.`;
+                        if (!match.score) match.score = 'watched';
+                    }
+
+                    updateTournamentUI();
+                    saveTournament(false);
+                }, 80);
+
+                setTimeout(() => {
+                    updateTournamentUI();
+                }, 3200);
+            }
+
+            return result;
+        };
+        endGame.__tourneyRevampWrapped = true;
+        window.endGame = endGame;
+    }
+
+    if (typeof draw === 'function' && !draw.__tourneyRevampWrapped) {
+        const oldDraw = draw;
+        draw = function tournamentRevampDraw() {
+            if (GAME_MODE === 'tournament' && !isTournamentMatch && tournamentData && tournamentData.active) {
+                drawTournamentBracketV2();
+                return;
+            }
+            return oldDraw.apply(this, arguments);
+        };
+        draw.__tourneyRevampWrapped = true;
+        window.draw = draw;
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootTournamentRevamp);
+    } else {
+        bootTournamentRevamp();
+    }
+})();
+
+
+// --- CUSTOM TOURNAMENT TEAM BUILDER + CAMPAIGN ADVENTURE MODE PATCH ---
+(function farrelCampaignAndTournamentCustomPatch() {
+    const CAMPAIGN_SAVE_KEY = 'ballBattle_campaign_save_v1';
+    let tournamentCustomRoster = [];
+    let campaignBattleActive = false;
+    let campaignBattleResolved = false;
+    let campaignLastEnemyRoster = [];
+
+    function getEl(id) { return document.getElementById(id); }
+    function esc(value) {
+        if (typeof escapeHtml === 'function') return escapeHtml(value);
+        return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+    }
+    function niceName(type) {
+        if (typeof titleCaseName === 'function') return titleCaseName(type);
+        return String(type || '').replace(/\b\w/g, m => m.toUpperCase());
+    }
+    function legalFighters() {
+        return (typeof FIGHTER_OPTIONS !== 'undefined' ? FIGHTER_OPTIONS : Object.keys(FIGHTER_DATA || {}))
+            .filter(type => type && FIGHTER_DATA[type] && !['turret', 'boid', 'binder', 'skeleton', 'mammoth_mount', 'empty'].includes(type));
+    }
+    function readSelectedFighter(selectId) {
+        const el = getEl(selectId);
+        const type = el ? String(el.value || '').toLowerCase() : '';
+        return legalFighters().includes(type) ? type : 'unarmed';
+    }
+    function fighterDamageScore(type) {
+        const data = FIGHTER_DATA[type] || {};
+        const raw = String(data.dmg || '').toLowerCase();
+        if (raw.includes('fatal')) return 78;
+        if (raw.includes('v. high') || raw.includes('very')) return 66;
+        if (raw.includes('heavy') || raw.includes('burst') || raw.includes('high')) return 54;
+        if (raw.includes('medium')) return 35;
+        if (raw.includes('adaptive') || raw.includes('scaling') || raw.includes('water') || raw.includes('pierce')) return 42;
+        if (raw.includes('low')) return 20;
+        return 32;
+    }
+    function fighterEffectivenessBonus(type) {
+        const bonus = {
+            bombman: 190, missile: 125, devourer: 160, mammoth: 135, spider: 125,
+            grower: 105, regenerator: 95, adapto: 95, duplicator: 90, necromancer: 85,
+            engineer: 80, spearer: 85, spatial: 90, vampire: 75, aquamarine: 72,
+            fight_knight: 100, 'fight knight': 100, pirate: 70, soldier: 60, laser: 62,
+            wizard: 45, bow: 45, rogue: 55, samurai: 65, scythe: 60, trapper: 58,
+            knight: 50, lance: 50, bard: 45, chameleon: 60, chrono: 55, dualist: 62,
+            unarmed: 20, swarm: 80
+        };
+        return bonus[type] || 35;
+    }
+    function fighterPrice(type) {
+        const data = FIGHTER_DATA[type] || { hp: 100 };
+        const hp = Number(data.hp || 100);
+        const dmg = fighterDamageScore(type);
+        const price = Math.round((hp * 0.42 + dmg * 3.4 + fighterEffectivenessBonus(type)) / 5) * 5;
+        return Math.max(55, Math.min(650, price));
+    }
+    function buildTeamObject(name, roster, isCustom) {
+        const bracketSizeEl = getEl('tourneyBracketSize');
+        const bracketSize = bracketSizeEl ? parseInt(bracketSizeEl.value, 10) || 16 : 16;
+        const index = Array.isArray(customTeamPool) ? customTeamPool.length : 0;
+        return {
+            id: `${isCustom ? 'custom' : 'bot'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            name: String(name || `Custom Team ${index + 1}`).trim().toUpperCase(),
+            roster: (roster && roster.length ? roster : ['unarmed']).slice(0, getTournamentTeamSizeSafe()),
+            color: isCustom ? '#00c3ff' : `hsl(${Math.round((index * 360 / Math.max(bracketSize, 1) + 23) % 360)},78%,48%)`,
+            wins: 0,
+            losses: 0,
+            seed: index + 1,
+            isCustom: !!isCustom
+        };
+    }
+    function getTournamentTeamSizeSafe() {
+        const el = getEl('tourneyTeamSize');
+        const n = parseInt(el ? el.value : 5, 10) || 5;
+        return Math.max(1, Math.min(30, n));
+    }
+    function populateFighterSelect(selectId) {
+        const select = getEl(selectId);
+        if (!select) return;
+        const old = select.value;
+        select.innerHTML = legalFighters().map(type => {
+            const data = FIGHTER_DATA[type] || {};
+            const price = fighterPrice(type);
+            return `<option value="${esc(type)}">${esc(niceName(type))}${selectId === 'campaignShopSelect' ? ` — $${price}` : ''}</option>`;
+        }).join('');
+        if (old && legalFighters().includes(old)) select.value = old;
+    }
+
+    // ---------- Tournament custom team builder ----------
+    function renderTournamentCustomRoster() {
+        const list = getEl('tourneyCustomRosterList');
+        if (!list) return;
+        const max = getTournamentTeamSizeSafe();
+        if (!tournamentCustomRoster.length) {
+            list.innerHTML = `No custom fighters selected yet. Pick up to ${max}.`;
+            return;
+        }
+        list.innerHTML = tournamentCustomRoster.map((type, index) => `
+            <span class="tourney-roster-chip">
+                ${esc(niceName(type))}
+                <button type="button" onclick="removeTournamentCustomFighter(${index})">×</button>
+            </span>
+        `).join('') + `<span class="tourney-roster-chip" style="background:#f1c40f;">${tournamentCustomRoster.length}/${max}</span>`;
+    }
+    function addTournamentCustomFighter() {
+        const max = getTournamentTeamSizeSafe();
+        if (tournamentCustomRoster.length >= max) {
+            return showCustomMessage('Custom Team Full', `This tournament team size is ${max}.`);
+        }
+        tournamentCustomRoster.push(readSelectedFighter('tourneyCustomFighterSelect'));
+        renderTournamentCustomRoster();
+    }
+    function removeTournamentCustomFighter(index) {
+        tournamentCustomRoster.splice(index, 1);
+        renderTournamentCustomRoster();
+    }
+    function clearTournamentCustomRoster() {
+        tournamentCustomRoster = [];
+        renderTournamentCustomRoster();
+    }
+    function addCustomTournamentTeamToBracket() {
+        const bracketSize = (() => {
+            const el = getEl('tourneyBracketSize');
+            return el ? parseInt(el.value, 10) || 16 : 16;
+        })();
+        if (!Array.isArray(customTeamPool)) customTeamPool = [];
+        if (customTeamPool.length >= bracketSize) {
+            return showCustomMessage('Bracket Full', `This bracket already has ${bracketSize} teams.`);
+        }
+        if (!tournamentCustomRoster.length) {
+            return showCustomMessage('No Fighters', 'Add at least one fighter to the custom team first.');
+        }
+        const needed = getTournamentTeamSizeSafe();
+        if (tournamentCustomRoster.length < needed) {
+            return showCustomMessage('Team Not Full', `This bracket team size is ${needed}. Add ${needed - tournamentCustomRoster.length} more fighter${needed - tournamentCustomRoster.length === 1 ? '' : 's'} or lower Team Size.`);
+        }
+        const nameInput = getEl('tourneyCustomTeamName');
+        const defaultName = `Custom Team ${customTeamPool.length + 1}`;
+        const teamName = nameInput && nameInput.value.trim() ? nameInput.value.trim() : defaultName;
+        customTeamPool.push(buildTeamObject(teamName, tournamentCustomRoster.slice(), true));
+        clearTournamentCustomRoster();
+        if (nameInput) nameInput.value = `Custom Team ${customTeamPool.length + 1}`;
+        if (typeof updatePoolUI === 'function') updatePoolUI();
+        if (typeof updateTournamentUI === 'function') updateTournamentUI();
+        showCustomMessage('Added to Bracket', `${teamName} entered the tournament bracket pool.`);
+    }
+
+    window.addTournamentCustomFighter = addTournamentCustomFighter;
+    window.removeTournamentCustomFighter = removeTournamentCustomFighter;
+    window.clearTournamentCustomRoster = clearTournamentCustomRoster;
+    window.addCustomTournamentTeamToBracket = addCustomTournamentTeamToBracket;
+
+    // ---------- Campaign mode ----------
+    function defaultCampaignState() {
+        return {
+            level: 1,
+            gold: 260,
+            roster: [],
+            currentEnemy: null,
+            wins: 0,
+            losses: 0,
+            lastReward: 0
+        };
+    }
+    let campaignState = loadCampaignState();
+
+    function loadCampaignState() {
+        try {
+            const raw = localStorage.getItem(CAMPAIGN_SAVE_KEY);
+            if (!raw) return defaultCampaignState();
+            const parsed = JSON.parse(raw);
+            return {
+                ...defaultCampaignState(),
+                ...parsed,
+                roster: Array.isArray(parsed.roster) ? parsed.roster.filter(type => FIGHTER_DATA[type]) : [],
+                currentEnemy: Array.isArray(parsed.currentEnemy) ? parsed.currentEnemy.filter(type => FIGHTER_DATA[type]) : null
+            };
+        } catch (err) {
+            return defaultCampaignState();
+        }
+    }
+    function saveCampaignState(showToast = false) {
+        try {
+            localStorage.setItem(CAMPAIGN_SAVE_KEY, JSON.stringify(campaignState));
+        } catch (err) {
+            console.warn('Could not save campaign:', err);
+        }
+        if (showToast) showCustomMessage('Campaign Saved', 'Your adventure progress was saved.');
+        renderCampaignUI();
+    }
+    function resetCampaignRun() {
+        if (!confirm('Start a fresh campaign run? This clears your campaign squad and gold.')) return;
+        campaignState = defaultCampaignState();
+        campaignBattleActive = false;
+        campaignBattleResolved = false;
+        saveCampaignState(false);
+        renderCampaignUI();
+        showCustomMessage('New Campaign', 'Fresh run started. Buy fighters, then start Level 1.');
+    }
+    function getCampaignEnemyPool(level) {
+        if (level <= 2) return ['unarmed', 'unarmed', 'bow', 'rogue'];
+        if (level <= 4) return ['unarmed', 'bow', 'rogue', 'wizard', 'soldier', 'knight'];
+        if (level <= 7) return ['soldier', 'knight', 'laser', 'pirate', 'trapper', 'samurai', 'aquamarine'];
+        if (level <= 10) return ['samurai', 'scythe', 'spearer', 'engineer', 'adapto', 'vampire', 'spider'];
+        if (level <= 15) return ['spider', 'missile', 'mammoth', 'bombman', 'grower', 'duplicator', 'necromancer', 'spatial'];
+        return legalFighters().filter(t => !['devourer', 'whispers'].includes(t)).concat(['devourer']);
+    }
+    function generateCampaignEnemy(level) {
+        if (level === 1) return ['unarmed'];
+        if (level === 2) return ['unarmed', 'bow'];
+        if (level === 3) return ['soldier', 'unarmed'];
+        if (level === 4) return ['knight', 'rogue', 'wizard'];
+        if (level === 5) return ['pirate', 'soldier', 'unarmed'];
+
+        const pool = getCampaignEnemyPool(level);
+        let budget = 115 + level * 42 + Math.floor(level / 5) * 85;
+        if (level % 5 === 0) budget += 125;
+        const roster = [];
+        let guard = 0;
+        while (budget > 55 && roster.length < Math.min(4 + Math.floor(level / 2), 18) && guard++ < 80) {
+            const affordable = pool.filter(type => fighterPrice(type) * 0.72 <= budget);
+            const pickPool = affordable.length ? affordable : ['unarmed'];
+            const type = pickPool[Math.floor(Math.random() * pickPool.length)];
+            roster.push(type);
+            budget -= Math.max(45, fighterPrice(type) * 0.72);
+        }
+        if (!roster.length) roster.push('unarmed');
+        if (level % 5 === 0) {
+            const bosses = level < 10 ? ['pirate', 'samurai', 'scythe'] : level < 15 ? ['spider', 'mammoth', 'missile'] : ['bombman', 'grower', 'spatial'];
+            roster[0] = bosses[Math.floor(Math.random() * bosses.length)];
+        }
+        return roster;
+    }
+    function ensureCampaignEnemy() {
+        if (!Array.isArray(campaignState.currentEnemy) || campaignState.currentEnemy.length === 0) {
+            campaignState.currentEnemy = generateCampaignEnemy(campaignState.level);
+        }
+        return campaignState.currentEnemy;
+    }
+    function renderCampaignUI() {
+        populateFighterSelect('campaignShopSelect');
+        const enemy = ensureCampaignEnemy();
+        const badge = getEl('campaignStatusBadge');
+        if (badge) {
+            badge.innerText = `Level ${campaignState.level} · $${campaignState.gold} · ${campaignState.wins}W/${campaignState.losses}L`;
+        }
+        const shop = getEl('campaignShopSelect');
+        const info = getEl('campaignShopInfo');
+        if (shop && info) {
+            const type = readSelectedFighter('campaignShopSelect');
+            const data = FIGHTER_DATA[type] || {};
+            info.innerHTML = `<b>${esc(niceName(type))}</b> — $${fighterPrice(type)}<br>HP ${esc(data.hp || '?')} · Damage ${esc(data.dmg || '?')}<br>${esc(data.ability || '')}<br><span style="opacity:.7">${esc(data.desc || '')}</span>`;
+        }
+        const rosterList = getEl('campaignRosterList');
+        if (rosterList) {
+            rosterList.innerHTML = campaignState.roster.length ? campaignState.roster.map((type, index) => `
+                <span class="campaign-roster-chip">
+                    ${esc(niceName(type))}
+                    <button type="button" onclick="sellCampaignFighter(${index})" title="Sell for half price">×</button>
+                </span>
+            `).join('') : 'No fighters bought yet. Buy at least one fighter to start.';
+        }
+        const enemyList = getEl('campaignEnemyPreview');
+        if (enemyList) {
+            const totalValue = enemy.reduce((sum, type) => sum + fighterPrice(type), 0);
+            enemyList.innerHTML = `<div style="width:100%;font-weight:900;margin-bottom:4px;">Level ${campaignState.level} Enemy · est. $${Math.round(totalValue * .72)}</div>` + enemy.map(type => `
+                <span class="campaign-enemy-chip">${esc(niceName(type))}</span>
+            `).join('');
+        }
+    }
+    function buyCampaignFighter() {
+        const type = readSelectedFighter('campaignShopSelect');
+        const price = fighterPrice(type);
+        if (campaignState.gold < price) {
+            return showCustomMessage('Not Enough Money', `${niceName(type)} costs $${price}. You have $${campaignState.gold}.`);
+        }
+        campaignState.gold -= price;
+        campaignState.roster.push(type);
+        saveCampaignState(false);
+        if (typeof playSound === 'function') playSound('equip');
+        showCustomMessage('Fighter Bought', `${niceName(type)} joined your campaign squad.`);
+    }
+    function sellCampaignFighter(index) {
+        if (index < 0 || index >= campaignState.roster.length) return;
+        const [type] = campaignState.roster.splice(index, 1);
+        campaignState.gold += Math.floor(fighterPrice(type) * 0.5);
+        saveCampaignState(false);
+    }
+    function clearCampaignRoster() {
+        campaignState.roster.forEach(type => { campaignState.gold += Math.floor(fighterPrice(type) * 0.5); });
+        campaignState.roster = [];
+        saveCampaignState(false);
+    }
+    function autoBuyCampaignSquad() {
+        const level = campaignState.level;
+        const plan = level < 3 ? ['soldier', 'unarmed', 'bow']
+            : level < 6 ? ['knight', 'soldier', 'wizard', 'rogue']
+            : level < 10 ? ['spearer', 'samurai', 'aquamarine', 'trapper', 'soldier']
+            : ['spider', 'missile', 'mammoth', 'adapto', 'spearer', 'wizard'];
+        let bought = 0;
+        for (const type of plan) {
+            const price = fighterPrice(type);
+            if (FIGHTER_DATA[type] && campaignState.gold >= price) {
+                campaignState.gold -= price;
+                campaignState.roster.push(type);
+                bought++;
+            }
+        }
+        saveCampaignState(false);
+        showCustomMessage('Auto Buy', bought ? `Bought ${bought} useful fighter${bought === 1 ? '' : 's'} for this level.` : 'Not enough money for the suggested fighters.');
+    }
+    function rerollCampaignEnemy() {
+        campaignState.currentEnemy = generateCampaignEnemy(campaignState.level);
+        saveCampaignState(false);
+        showCustomMessage('Scouted', 'New enemy squad generated.');
+    }
+    function spawnCampaignTeam(roster, team, sideKey, teamColor) {
+        roster.forEach((type, index) => {
+            const spawn = typeof getSafeSpawnPos === 'function'
+                ? getSafeSpawnPos(team, 28)
+                : { x: team === 1 ? canvas.width * 0.22 : canvas.width * 0.78, y: 90 + index * 42 };
+            const fighter = createFighter(type, spawn.x, spawn.y, team, false, null, null, sideKey, index);
+            fighter.initialX = fighter.x;
+            fighter.initialY = fighter.y;
+            fighter.nameIndex = index + 1;
+            fighter.displayName = team === 1 ? `Campaign ${niceName(type)} ${index + 1}` : `Enemy ${niceName(type)} ${index + 1}`;
+            fighter.campaignUnit = true;
+            fighter.color = teamColor || fighter.color;
+            entities.push(fighter);
+            if (type === 'necromancer') {
+                spawnSkeleton(fighter.x + (team === 1 ? -30 : 30), fighter.y + 20, team, fighter.id);
+                spawnSkeleton(fighter.x + (team === 1 ? -30 : 30), fighter.y - 20, team, fighter.id);
+            }
+            if (type === 'dualist') {
+                const pet = createFighter('binder', fighter.x + (team === 1 ? -40 : 40), fighter.y, team, true, fighter.id);
+                pet.ownerId = fighter.id;
+                pet.color = fighter.color;
+                entities.push(pet);
+            }
+        });
+    }
+    function startCampaignBattle() {
+        if (!campaignState.roster.length) {
+            return showCustomMessage('No Squad', 'Buy at least one fighter before starting the campaign level.');
+        }
+        const modeSelect = getEl('modeSelect');
+        if (modeSelect) modeSelect.value = 'campaign';
+        GAME_MODE = 'campaign';
+        campaignBattleActive = true;
+        campaignBattleResolved = false;
+        campaignLastEnemyRoster = ensureCampaignEnemy().slice();
+
+        entities = [];
+        obstacles = [];
+        projectiles = [];
+        particles = [];
+        decals = [];
+        traps = [];
+        portals = [];
+        damageText = [];
+        gameOverTriggered = false;
+        isTournamentMatch = false;
+
+        const total = campaignState.roster.length + campaignLastEnemyRoster.length;
+        const mapSelect = getEl('mapSizeSelect');
+        if (mapSelect && total >= 12 && ['small', 'normal'].includes(mapSelect.value)) {
+            mapSelect.value = total > 28 ? 'huge' : 'large';
+        }
+        if (typeof changeMapSize === 'function') changeMapSize();
+        // changeMapSize() may rebuild normal setup squads, so clear again before campaign spawning.
+        entities = [];
+        projectiles = [];
+        particles = [];
+        decals = [];
+        traps = [];
+        portals = [];
+        damageText = [];
+
+        spawnCampaignTeam(campaignState.roster, 1, 'p1', '#00c3ff');
+        spawnCampaignTeam(campaignLastEnemyRoster, 2, 'p2', '#ff4757');
+        if (typeof randomizeObstacles === 'function' && campaignState.level >= 3 && campaignState.level % 2 === 0) randomizeObstacles();
+
+        isSetupPhase = false;
+        gameActive = true;
+        battleRunId++;
+        battleStartFrame = frameCount;
+        battleTotalKills = 0;
+        battleStats = {};
+        entities.forEach(e => {
+            applyBattleChaosToFighter(e);
+            if (typeof ensureBattleStat === 'function') ensureBattleStat(e);
+        });
+        const title = getEl('mainTitle');
+        if (title) title.innerHTML = `<span style="color:#00c3ff">CAMPAIGN SQUAD</span> VS <span style="color:#ff4757">LEVEL ${campaignState.level}</span>`;
+        if (typeof resetCamera === 'function') resetCamera();
+        if (typeof updateLiveCounts === 'function') updateLiveCounts();
+        if (resultModal) resultModal.style.display = 'none';
+        if (typeof playBGM === 'function') playBGM('battle');
+    }
+    function resolveCampaignBattle(resultTextValue) {
+        if (!campaignBattleActive || campaignBattleResolved) return;
+        campaignBattleResolved = true;
+        campaignBattleActive = false;
+        const won = String(resultTextValue || '').includes('LEFT');
+        if (won) {
+            const reward = 95 + campaignState.level * 28 + Math.floor(campaignLastEnemyRoster.length * 12);
+            campaignState.gold += reward;
+            campaignState.wins += 1;
+            campaignState.lastReward = reward;
+            campaignState.level += 1;
+            campaignState.currentEnemy = null;
+            saveCampaignState(false);
+            setTimeout(() => showCustomMessage('Campaign Cleared', `Victory! Earned $${reward}. Level ${campaignState.level} unlocked.`), 450);
+        } else {
+            const consolation = 20 + Math.floor(campaignState.level * 4);
+            campaignState.gold += consolation;
+            campaignState.losses += 1;
+            saveCampaignState(false);
+            setTimeout(() => showCustomMessage('Campaign Defeat', `You gained $${consolation} retry money. Change your squad and try again.`), 450);
+        }
+        renderCampaignUI();
+    }
+
+    function showCampaignModeUI() {
+        const std = getEl('standardControls');
+        const tourney = getEl('tournamentControls');
+        const campaign = getEl('campaignControls');
+        const squad = getEl('squadSection');
+        const title = getEl('mainTitle');
+        const teamScore = getEl('teamScoreDisplay');
+        const ffaScore = getEl('ffaScoreDisplay');
+        if (std) std.style.display = 'none';
+        if (tourney) tourney.style.display = 'none';
+        if (campaign) campaign.style.display = 'flex';
+        if (squad) squad.style.display = 'none';
+        if (title) title.innerHTML = '<span style="color:#2ed573">CAMPAIGN</span> <span style="color:#f1c40f">ADVENTURE</span>';
+        if (teamScore) teamScore.style.display = 'inline';
+        if (ffaScore) ffaScore.style.display = 'none';
+        isTournamentMatch = false;
+        renderCampaignUI();
+    }
+    function hideCampaignModeUI() {
+        const campaign = getEl('campaignControls');
+        if (campaign) campaign.style.display = 'none';
+    }
+
+    window.buyCampaignFighter = buyCampaignFighter;
+    window.sellCampaignFighter = sellCampaignFighter;
+    window.clearCampaignRoster = clearCampaignRoster;
+    window.autoBuyCampaignSquad = autoBuyCampaignSquad;
+    window.rerollCampaignEnemy = rerollCampaignEnemy;
+    window.startCampaignBattle = startCampaignBattle;
+    window.resetCampaignRun = resetCampaignRun;
+    window.saveCampaignState = saveCampaignState;
+
+    function bootCampaignPatch() {
+        populateFighterSelect('tourneyCustomFighterSelect');
+        populateFighterSelect('campaignShopSelect');
+        renderTournamentCustomRoster();
+        renderCampaignUI();
+        const shop = getEl('campaignShopSelect');
+        if (shop && !shop.__campaignInfoBound) {
+            shop.addEventListener('change', renderCampaignUI);
+            shop.__campaignInfoBound = true;
+        }
+    }
+
+    if (typeof toggleGameMode === 'function' && !toggleGameMode.__campaignWrapped) {
+        const oldToggleGameMode = toggleGameMode;
+        toggleGameMode = function campaignToggleGameModeWrapper() {
+            const modeSelect = getEl('modeSelect');
+            const chosenMode = modeSelect ? modeSelect.value : GAME_MODE;
+            const result = oldToggleGameMode.apply(this, arguments);
+            if (chosenMode === 'campaign') {
+                GAME_MODE = 'campaign';
+                isSetupPhase = true;
+                showCampaignModeUI();
+                if (typeof updateFullscreenHud === 'function') updateFullscreenHud();
+            } else {
+                hideCampaignModeUI();
+            }
+            return result;
+        };
+        toggleGameMode.__campaignWrapped = true;
+        window.toggleGameMode = toggleGameMode;
+    }
+
+    if (typeof syncFullscreenSetupControls === 'function' && !syncFullscreenSetupControls.__campaignWrapped) {
+        const oldSyncFs = syncFullscreenSetupControls;
+        syncFullscreenSetupControls = function campaignSyncFullscreenSetupControls() {
+            const fsMode = getEl('fsModeSelect');
+            if (fsMode && !Array.from(fsMode.options).some(opt => opt.value === 'campaign')) {
+                fsMode.insertAdjacentHTML('beforeend', '<option value="campaign">Campaign</option>');
+            }
+            return oldSyncFs.apply(this, arguments);
+        };
+        syncFullscreenSetupControls.__campaignWrapped = true;
+        window.syncFullscreenSetupControls = syncFullscreenSetupControls;
+    }
+
+    if (typeof endGame === 'function' && !endGame.__campaignWrapped) {
+        const oldEndGame = endGame;
+        endGame = function campaignEndGameWrapper(text) {
+            const wasCampaign = GAME_MODE === 'campaign' && campaignBattleActive;
+            const result = oldEndGame.apply(this, arguments);
+            if (wasCampaign) resolveCampaignBattle(text);
+            return result;
+        };
+        endGame.__campaignWrapped = true;
+        window.endGame = endGame;
+    }
+
+    if (typeof playAgain === 'function' && !playAgain.__campaignWrapped) {
+        const oldPlayAgain = playAgain;
+        playAgain = function campaignPlayAgainWrapper() {
+            if (GAME_MODE === 'campaign') {
+                if (resultModal) resultModal.style.display = 'none';
+                startCampaignBattle();
+                return;
+            }
+            return oldPlayAgain.apply(this, arguments);
+        };
+        playAgain.__campaignWrapped = true;
+        window.playAgain = playAgain;
+    }
+
+    if (typeof resetPositions === 'function' && !resetPositions.__campaignWrapped) {
+        const oldReset = resetPositions;
+        resetPositions = function campaignResetPositionsWrapper() {
+            if (GAME_MODE === 'campaign' && !campaignBattleActive) {
+                entities = [];
+                projectiles = [];
+                particles = [];
+                decals = [];
+                traps = [];
+                isSetupPhase = true;
+                gameOverTriggered = false;
+                if (typeof resetCamera === 'function') resetCamera();
+                renderCampaignUI();
+                return;
+            }
+            return oldReset.apply(this, arguments);
+        };
+        resetPositions.__campaignWrapped = true;
+        window.resetPositions = resetPositions;
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootCampaignPatch);
+    } else {
+        bootCampaignPatch();
+    }
+})();
+
+
+/* --- FARREL TOURNAMENT START BUTTON + TACTICAL CHESS REVAMP --- */
+(function farrelTournamentStartAndTacticalChessPatch() {
+    const CHESS_STATE_KEY = 'ballBattleTacticalChessLastConfig';
+
+    const chessState = {
+        active: false,
+        mode: 'classic',
+        objective: 'king',
+        opening: 'balanced',
+        labels: true,
+        control: { 1: 0, 2: 0 },
+        points: [],
+        lastScoreFrame: -1
+    };
+
+    function safeEl(id) {
+        return document.getElementById(id);
+    }
+
+    function parseIntInput(id, fallback, min = 1, max = 10000) {
+        const el = safeEl(id);
+        const value = el ? parseInt(el.value, 10) : fallback;
+        if (!Number.isFinite(value)) return fallback;
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function showMsg(title, text) {
+        if (typeof showCustomMessage === 'function') showCustomMessage(title, text);
+        else console.log(`${title}: ${text}`);
+    }
+
+    function legalFighterTypesForPatch() {
+        if (Array.isArray(FIGHTER_OPTIONS) && FIGHTER_OPTIONS.length) return FIGHTER_OPTIONS.slice();
+        return Object.keys(FIGHTER_DATA || {}).filter(type => !['mammoth_mount'].includes(type));
+    }
+
+    function randomRosterForPatch(size) {
+        const options = legalFighterTypesForPatch();
+        const roster = [];
+        for (let i = 0; i < size; i++) {
+            roster.push(options[Math.floor(Math.random() * options.length)] || 'unarmed');
+        }
+        return roster;
+    }
+
+    function makePatchTournamentTeam(name, roster, index, isCustom = false) {
+        const safeRoster = Array.isArray(roster) && roster.length ? roster.slice() : ['unarmed'];
+        return {
+            id: `${isCustom ? 'custom' : 'bot'}_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`,
+            name: String(name || `Team ${index + 1}`).toUpperCase(),
+            roster: safeRoster,
+            color: `hsl(${(index * 137.508) % 360}, 74%, 52%)`,
+            wins: 0,
+            seed: index + 1,
+            isCustom: !!isCustom
+        };
+    }
+
+    function getPatchBracketSize() {
+        const select = safeEl('tourneyBracketSize');
+        return select ? parseInt(select.value, 10) || 16 : 16;
+    }
+
+    function getPatchTeamSize() {
+        return parseIntInput('tourneyTeamSize', 5, 1, 30);
+    }
+
+    function getPatchSeedStyle() {
+        const select = safeEl('tourneySeedStyle');
+        return select ? select.value : 'shuffle';
+    }
+
+    function getPatchRuleset() {
+        const select = safeEl('tourneyRuleset');
+        return select ? select.value : 'balanced';
+    }
+
+    function normalizePatchTeamRoster(team, teamSize) {
+        const roster = Array.isArray(team.roster) ? team.roster.filter(Boolean).slice(0, teamSize) : [];
+        while (roster.length < teamSize) roster.push('unarmed');
+        return { ...team, roster };
+    }
+
+    function buildPatchFirstRound(teams) {
+        const matches = [];
+        for (let i = 0; i < teams.length; i += 2) {
+            matches.push({
+                p1: teams[i],
+                p2: teams[i + 1],
+                winner: null,
+                score: null,
+                resultReason: null,
+                playedMode: null
+            });
+        }
+        return matches;
+    }
+
+    function addBotTeamsUntilFull(bracketSize, teamSize) {
+        if (!Array.isArray(customTeamPool)) customTeamPool = [];
+
+        while (customTeamPool.length < bracketSize) {
+            const idx = customTeamPool.length;
+            const name = typeof generateTeamName === 'function'
+                ? generateTeamName()
+                : `Bot Team ${idx + 1}`;
+
+            customTeamPool.push(makePatchTournamentTeam(name, randomRosterForPatch(teamSize), idx, false));
+        }
+    }
+
+    function validateTournamentPoolForStart(bracketSize, teamSize, fillMissing) {
+        if (!Array.isArray(customTeamPool)) customTeamPool = [];
+
+        if (customTeamPool.length === 0) {
+            return {
+                ok: false,
+                title: 'No Teams',
+                message: 'Add a custom team, add P1 team, add bot teams, or press Fill + Start.'
+            };
+        }
+
+        if (customTeamPool.length < bracketSize && !fillMissing) {
+            return {
+                ok: false,
+                title: 'Pool Not Full',
+                message: `You have ${customTeamPool.length}/${bracketSize} teams. Add more teams or use Fill + Start to complete the bracket with bots.`
+            };
+        }
+
+        const brokenTeam = customTeamPool.find(team => !team || !Array.isArray(team.roster) || team.roster.length === 0);
+        if (brokenTeam) {
+            return {
+                ok: false,
+                title: 'Invalid Team',
+                message: `${brokenTeam.name || 'A team'} has no fighters. Remove it or rebuild it.`
+            };
+        }
+
+        return { ok: true };
+    }
+
+    function startTournamentFromPool(fillMissing = false) {
+        const bracketSize = getPatchBracketSize();
+        const teamSize = getPatchTeamSize();
+
+        const validation = validateTournamentPoolForStart(bracketSize, teamSize, fillMissing);
+        if (!validation.ok) {
+            showMsg(validation.title, validation.message);
+            return false;
+        }
+
+        if (fillMissing) addBotTeamsUntilFull(bracketSize, teamSize);
+
+        let teams = customTeamPool
+            .slice(0, bracketSize)
+            .map((team, index) => normalizePatchTeamRoster({
+                ...JSON.parse(JSON.stringify(team)),
+                seed: index + 1,
+                color: team.color || `hsl(${(index * 137.508) % 360}, 74%, 52%)`
+            }, teamSize));
+
+        if (teams.length < bracketSize) {
+            showMsg('Pool Not Full', `Only ${teams.length}/${bracketSize} teams are ready.`);
+            return false;
+        }
+
+        if (getPatchSeedStyle() === 'shuffle') {
+            teams.sort(() => Math.random() - 0.5);
+        }
+
+        teams.forEach((team, index) => {
+            team.seed = index + 1;
+            if (!team.color) team.color = `hsl(${(index * 137.508) % 360}, 74%, 52%)`;
+        });
+
+        tournamentData = {
+            active: true,
+            teams,
+            bracketSize,
+            teamSize,
+            ruleset: getPatchRuleset(),
+            seedStyle: getPatchSeedStyle(),
+            round: 0,
+            matches: [buildPatchFirstRound(teams)],
+            currentMatchIndex: 0,
+            champion: null,
+            history: [],
+            startedAt: Date.now(),
+            source: fillMissing ? 'pool+bots' : 'custom-pool'
+        };
+
+        GAME_MODE = 'tournament';
+        const modeSelect = safeEl('modeSelect');
+        if (modeSelect) modeSelect.value = 'tournament';
+
+        isSetupPhase = true;
+        isTournamentMatch = false;
+        gameOverTriggered = false;
+
+        if (typeof window.updatePoolUI === 'function') window.updatePoolUI();
+        if (typeof window.updateTournamentUI === 'function') window.updateTournamentUI();
+        if (typeof window.saveTournament === 'function') window.saveTournament(false);
+
+        const status = safeEl('tourneyStatus');
+        if (status) {
+            status.innerText = fillMissing
+                ? `Bracket started from pool and filled with bots: ${bracketSize} teams.`
+                : `Bracket started from your team pool: ${bracketSize} teams.`;
+        }
+
+        showMsg('Tournament Started', fillMissing
+            ? `Your pool entered the bracket. Missing slots were filled with bots.`
+            : `Your custom team pool is now the active bracket. Press Watch Next or Sim Next.`);
+
+        if (typeof playSound === 'function') playSound('zap');
+        return true;
+    }
+
+    function fillAndStartTournamentFromPool() {
+        return startTournamentFromPool(true);
+    }
+
+    window.startTournamentFromPool = startTournamentFromPool;
+    window.fillAndStartTournamentFromPool = fillAndStartTournamentFromPool;
+
+    // Make old "Auto Bracket" / initTournament do the obvious thing: fill missing teams and start.
+    if (typeof window.initTournament === 'function' && !window.initTournament.__farrelPoolStartWrapped) {
+        const previousInitTournament = window.initTournament;
+        const replacementInitTournament = function patchedInitTournament() {
+            if (GAME_MODE === 'tournament' || (safeEl('modeSelect') && safeEl('modeSelect').value === 'tournament')) {
+                return startTournamentFromPool(true);
+            }
+            return previousInitTournament.apply(this, arguments);
+        };
+
+        replacementInitTournament.__farrelPoolStartWrapped = true;
+        window.initTournament = replacementInitTournament;
+        try { initTournament = replacementInitTournament; } catch (err) {}
+    }
+
+    function renderTournamentStartButtonState() {
+        const bracketSize = getPatchBracketSize();
+        const count = Array.isArray(customTeamPool) ? customTeamPool.length : 0;
+        const status = safeEl('tourneyStatus');
+
+        if (status && GAME_MODE === 'tournament' && (!tournamentData || !tournamentData.active)) {
+            status.innerText = count >= bracketSize
+                ? `${count}/${bracketSize} teams ready. Press Start Pool Bracket.`
+                : `${count}/${bracketSize} teams in pool. Add teams or press Fill + Start.`;
+        }
+    }
+
+    const originalUpdateTournamentUI = window.updateTournamentUI;
+    if (typeof originalUpdateTournamentUI === 'function' && !originalUpdateTournamentUI.__farrelPoolStartWrapped) {
+        window.updateTournamentUI = function patchedUpdateTournamentUI() {
+            const result = originalUpdateTournamentUI.apply(this, arguments);
+            renderTournamentStartButtonState();
+            return result;
+        };
+        window.updateTournamentUI.__farrelPoolStartWrapped = true;
+        try { updateTournamentUI = window.updateTournamentUI; } catch (err) {}
+    }
+
+    // ---------------- Tactical Chess ----------------
+    function chessConfig() {
+        const setup = safeEl('chessSetupSelect');
+        const objective = safeEl('chessObjectiveSelect');
+        const opening = safeEl('chessOpeningSelect');
+        const labels = safeEl('chessLabelsSelect');
+
+        return {
+            mode: setup ? setup.value : 'classic',
+            objective: objective ? objective.value : 'king',
+            opening: opening ? opening.value : 'balanced',
+            labels: !labels || labels.value !== 'off'
+        };
+    }
+
+    function saveChessConfig() {
+        try {
+            localStorage.setItem(CHESS_STATE_KEY, JSON.stringify(chessConfig()));
+        } catch (err) {}
+    }
+
+    function loadChessConfig() {
+        try {
+            const raw = localStorage.getItem(CHESS_STATE_KEY);
+            if (!raw) return;
+            const saved = JSON.parse(raw);
+            ['chessSetupSelect', 'chessObjectiveSelect', 'chessOpeningSelect', 'chessLabelsSelect'].forEach(id => {
+                const el = safeEl(id);
+                if (!el) return;
+                const key = id === 'chessSetupSelect' ? 'mode'
+                    : id === 'chessObjectiveSelect' ? 'objective'
+                    : id === 'chessOpeningSelect' ? 'opening'
+                    : 'labels';
+                if (saved[key] !== undefined) el.value = key === 'labels' ? (saved[key] ? 'on' : 'off') : saved[key];
+            });
+        } catch (err) {}
+    }
+
+    function setChessStatus(text) {
+        const badge = safeEl('chessStatusBadge');
+        if (badge) badge.innerText = text;
+    }
+
+    function chessObjectiveText() {
+        const cfg = chessConfig();
+        if (cfg.objective === 'control') {
+            return 'Control Points: hold glowing center zones to score. First side to 100 control points wins. Kings still matter as powerful anchors.';
+        }
+        if (cfg.objective === 'hybrid') {
+            return 'Hybrid War: checkmate wins instantly, but holding center zones can also win at 100 control points.';
+        }
+        return 'King Hunt: destroy the golden enemy king to checkmate. Center zones give small healing and pressure advantages.';
+    }
+
+    function renderTacticalChessUI() {
+        saveChessConfig();
+        const cfg = chessConfig();
+        const info = safeEl('chessObjectiveInfo');
+        if (info) {
+            info.innerText = `${chessObjectiveText()} Setup: ${cfg.mode}. Opening: ${cfg.opening}.`;
+        }
+
+        const label = cfg.objective === 'king' ? 'King Hunt'
+            : cfg.objective === 'control' ? 'Control Points'
+            : 'Hybrid War';
+        const score = `L ${Math.floor(chessState.control[1] || 0)} · R ${Math.floor(chessState.control[2] || 0)}`;
+        setChessStatus(`${label} · ${score}`);
+    }
+
+    window.renderTacticalChessUI = renderTacticalChessUI;
+
+    function chessPointList() {
+        return [
+            { x: canvas.width * 0.50, y: canvas.height * 0.50, r: 48, name: 'CENTER', owner: 0 },
+            { x: canvas.width * 0.50, y: canvas.height * 0.30, r: 36, name: 'NORTH', owner: 0 },
+            { x: canvas.width * 0.50, y: canvas.height * 0.70, r: 36, name: 'SOUTH', owner: 0 }
+        ];
+    }
+
+    function resetChessRuntimeState(cfg) {
+        chessState.active = true;
+        chessState.mode = cfg.mode;
+        chessState.objective = cfg.objective;
+        chessState.opening = cfg.opening;
+        chessState.labels = cfg.labels;
+        chessState.control = { 1: 0, 2: 0 };
+        chessState.points = chessPointList();
+        chessState.lastScoreFrame = frameCount;
+        renderTacticalChessUI();
+    }
+
+    function addChessObstacle(type, x, y, radius = 22, hp = 150) {
+        obstacles.push({
+            x, y, type,
+            radius,
+            hp,
+            maxHp: hp,
+            mass: type === 'rock' ? 3.5 : 2.0,
+            vx: 0,
+            vy: 0,
+            friction: 0.92
+        });
+    }
+
+    function applyChessBoardHazards(mode) {
+        if (mode === 'fortress') {
+            const rows = [0.38, 0.50, 0.62];
+            rows.forEach(yMul => {
+                addChessObstacle('rock', canvas.width * 0.26, canvas.height * yMul, 18, 180);
+                addChessObstacle('rock', canvas.width * 0.74, canvas.height * yMul, 18, 180);
+            });
+            addChessObstacle('spike', canvas.width * 0.50, canvas.height * 0.18, 22, 220);
+            addChessObstacle('spike', canvas.width * 0.50, canvas.height * 0.82, 22, 220);
+        }
+
+        if (mode === 'chaos') {
+            addChessObstacle('barrel', canvas.width * 0.50, canvas.height * 0.18, 20, 50);
+            addChessObstacle('barrel', canvas.width * 0.50, canvas.height * 0.82, 20, 50);
+            addChessObstacle('ice', canvas.width * 0.50, canvas.height * 0.50, 42, 999);
+            addChessObstacle('mine', canvas.width * 0.42, canvas.height * 0.35, 16, 1);
+            addChessObstacle('mine', canvas.width * 0.58, canvas.height * 0.65, 16, 1);
+        }
+    }
+
+    function configureChessPiece(f, role, label, team, row) {
+        f.chessPiece = true;
+        f.chessRole = role;
+        f.chessLabel = label;
+        f.chessRow = row;
+        f.chessAge = 0;
+        f.chessPromoted = false;
+        f.displayName = `${team === 1 ? 'Left' : 'Right'} ${role}`;
+        f.angle = team === 1 ? 0 : Math.PI;
+
+        if (role === 'King') {
+            f.isKing = true;
+            f.maxHp *= 1.85;
+            f.hp = f.maxHp;
+            f.radius += 4;
+            f.color = team === 1 ? '#f1c40f' : '#ffdd59';
+            f.dmgMult = (f.dmgMult || 1) * 1.05;
+        }
+
+        if (role === 'Queen') {
+            f.maxHp *= 1.18;
+            f.hp = f.maxHp;
+            f.radius += 2;
+            f.dmgMult = (f.dmgMult || 1) * 1.18;
+        }
+
+        if (role === 'Pawn') {
+            f.mass *= 0.82;
+            f.maxHp *= 0.92;
+            f.hp = f.maxHp;
+        }
+
+        if (role === 'Knight') {
+            f.bravery = 1.25;
+            f.dmgMult = (f.dmgMult || 1) * 1.08;
+        }
+
+        if (role === 'Rook') {
+            f.maxHp *= 1.1;
+            f.hp = f.maxHp;
+        }
+
+        if (role === 'Bishop') {
+            f.dmgMult = (f.dmgMult || 1) * 1.08;
+        }
+    }
+
+    function setupTacticalChessBoard(startNow = false) {
+        const cfg = chessConfig();
+        saveChessConfig();
+
+        GAME_MODE = 'chess';
+        const modeSelect = safeEl('modeSelect');
+        if (modeSelect) modeSelect.value = 'chess';
+
+        entities = [];
+        projectiles = [];
+        particles = [];
+        decals = [];
+        damageText = [];
+        obstacles = [];
+        pickups = [];
+        battleStats = {};
+        gameOverTriggered = false;
+        isTournamentMatch = false;
+        isSetupPhase = true;
+
+        resetChessRuntimeState(cfg);
+
+        const rows = cfg.mode === 'blitz' ? [1, 2, 3, 4, 6] : [0, 1, 2, 3, 4, 5, 6, 7];
+        const cellH = Math.min(56, Math.max(34, (canvas.height - 110) / 8));
+        const startY = canvas.height / 2 - cellH * 3.5;
+
+        let leftBackX = 76;
+        let leftPawnX = 148;
+        let rightBackX = canvas.width - 76;
+        let rightPawnX = canvas.width - 148;
+
+        if (cfg.opening === 'aggressive') {
+            leftPawnX += 35;
+            rightPawnX -= 35;
+        }
+
+        if (cfg.opening === 'defensive') {
+            leftBackX -= 10;
+            leftPawnX -= 20;
+            rightBackX += 10;
+            rightPawnX += 20;
+        }
+
+        const backline = [
+            { type: 'laser', role: 'Rook', label: '♜' },
+            { type: 'knight', role: 'Knight', label: '♞' },
+            { type: 'wizard', role: 'Bishop', label: '♝' },
+            { type: 'spatial', role: 'Queen', label: '♛' },
+            { type: 'duplicator', role: 'King', label: '♚' },
+            { type: 'wizard', role: 'Bishop', label: '♝' },
+            { type: 'knight', role: 'Knight', label: '♞' },
+            { type: 'laser', role: 'Rook', label: '♜' }
+        ];
+
+        function spawnPiece(piece, row, team, isPawn) {
+            const y = startY + row * cellH;
+            const x = team === 1
+                ? (isPawn ? leftPawnX : leftBackX)
+                : (isPawn ? rightPawnX : rightBackX);
+
+            const f = createFighter(piece.type, x, y, team);
+            configureChessPiece(f, piece.role, piece.label, team, row);
+            f.initialX = x;
+            f.initialY = y;
+            entities.push(f);
+            return f;
+        }
+
+        [1, 2].forEach(team => {
+            rows.forEach(row => {
+                spawnPiece({ type: 'unarmed', role: 'Pawn', label: '♟' }, row, team, true);
+            });
+
+            rows.forEach(row => {
+                const piece = backline[row];
+                if (piece) spawnPiece(piece, row, team, false);
+            });
+        });
+
+        applyChessBoardHazards(cfg.mode);
+
+        updateLiveCounts();
+        if (typeof resetCamera === 'function') resetCamera();
+        if (!gameActive && typeof loop === 'function') {
+            gameActive = true;
+            loop();
+        }
+
+        if (startNow) beginBattle();
+    }
+
+    function startTacticalChess() {
+        setupTacticalChessBoard(false);
+        beginBattle();
+        showMsg('Tactical Chess', 'Battle started. Protect your king and control the center.');
+    }
+
+    function resetTacticalChessBoard() {
+        setupTacticalChessBoard(false);
+        showMsg('Tactical Chess', 'Board reset. Press Start Tactical Chess when ready.');
+    }
+
+    function previewTacticalChessBoard() {
+        setupTacticalChessBoard(false);
+        showMsg('Chess Preview', chessObjectiveText());
+    }
+
+    function explainTacticalChess() {
+        showMsg('Tactical Chess Rules', 'Checkmate the enemy king. Pawns promote after crossing the center. Control points heal and score. Fortress and Chaos boards add terrain, mines, barrels, and ice.');
+    }
+
+    window.startTacticalChess = startTacticalChess;
+    window.resetTacticalChessBoard = resetTacticalChessBoard;
+    window.previewTacticalChessBoard = previewTacticalChessBoard;
+    window.explainTacticalChess = explainTacticalChess;
+
+    if (typeof initializeSquads === 'function' && !initializeSquads.__farrelChessRevampWrapped) {
+        const previousInitializeSquads = initializeSquads;
+        initializeSquads = function patchedInitializeSquads() {
+            if (GAME_MODE === 'chess') {
+                setupTacticalChessBoard(false);
+                return;
+            }
+            return previousInitializeSquads.apply(this, arguments);
+        };
+        initializeSquads.__farrelChessRevampWrapped = true;
+        window.initializeSquads = initializeSquads;
+    }
+
+    function liveChessPieces() {
+        return entities.filter(e => e && e.hp > 0 && e.chessPiece);
+    }
+
+    function findChessKings() {
+        return liveChessPieces().filter(e => e.isKing);
+    }
+
+    function promotePawn(e) {
+        if (!e || e.chessPromoted || e.chessRole !== 'Pawn') return;
+
+        const crossed = e.team === 1
+            ? e.x > canvas.width * 0.56
+            : e.x < canvas.width * 0.44;
+
+        const survivedLong = e.chessAge > 60 * 35;
+
+        if (!crossed && !survivedLong) return;
+
+        e.chessPromoted = true;
+        e.chessRole = 'Promoted Knight';
+        e.chessLabel = '♞';
+        e.type = 'knight';
+        e.originalType = 'knight';
+        e.displayName = `${e.team === 1 ? 'Left' : 'Right'} Promoted Knight`;
+        e.maxHp += 80;
+        e.hp = Math.min(e.maxHp, e.hp + 80);
+        e.radius += 2;
+        e.dmgMult = (e.dmgMult || 1) * 1.3;
+        e.bravery = 1.45;
+        spawnParticles(e.x, e.y, '#f1c40f', 22);
+        spawnDamageText(e.x, e.y - 30, 'PROMOTED', '#f1c40f', true);
+    }
+
+    function applyKingAuras() {
+        const kings = findChessKings();
+        kings.forEach(king => {
+            liveChessPieces().forEach(piece => {
+                if (piece.team !== king.team || piece.id === king.id) return;
+                const d = Math.hypot(piece.x - king.x, piece.y - king.y);
+                if (d > 145) return;
+
+                piece.chessGuardTimer = 12;
+
+                if (!isSetupPhase && frameCount % 60 === 0) {
+                    piece.hp = Math.min(piece.maxHp, piece.hp + 1.5);
+                    if (Math.random() < 0.35) spawnParticles(piece.x, piece.y, '#f1c40f', 1);
+                }
+            });
+        });
+    }
+
+    function applyControlPointRules() {
+        if (!chessState.points.length) chessState.points = chessPointList();
+
+        chessState.points.forEach(point => {
+            let left = 0;
+            let right = 0;
+
+            liveChessPieces().forEach(piece => {
+                const d = Math.hypot(piece.x - point.x, piece.y - point.y);
+                if (d > point.r + piece.radius) return;
+                if (piece.team === 1) left++;
+                if (piece.team === 2) right++;
+            });
+
+            point.owner = left > right ? 1 : right > left ? 2 : point.owner || 0;
+
+            if (!isSetupPhase && point.owner && frameCount % 30 === 0) {
+                chessState.control[point.owner] = (chessState.control[point.owner] || 0) + (point.name === 'CENTER' ? 2 : 1);
+
+                liveChessPieces().forEach(piece => {
+                    if (piece.team !== point.owner) return;
+                    const d = Math.hypot(piece.x - point.x, piece.y - point.y);
+                    if (d < point.r + 55) {
+                        piece.hp = Math.min(piece.maxHp, piece.hp + 0.8);
+                        piece.chessPointTimer = 18;
+                    }
+                });
+            }
+        });
+
+        const canControlWin = chessState.objective === 'control' || chessState.objective === 'hybrid';
+        if (canControlWin && !gameOverTriggered && !isSetupPhase) {
+            if ((chessState.control[1] || 0) >= 100) endGame('LEFT TEAM WINS BY CONTROL');
+            if ((chessState.control[2] || 0) >= 100) endGame('RIGHT TEAM WINS BY CONTROL');
+        }
+    }
+
+    function applyTacticalChessRules() {
+        if (GAME_MODE !== 'chess' || !chessState.active) return;
+
+        liveChessPieces().forEach(piece => {
+            piece.chessAge = (piece.chessAge || 0) + 1;
+
+            if (piece.chessRole === 'Pawn') promotePawn(piece);
+
+            if (piece.chessGuardTimer > 0) piece.chessGuardTimer--;
+            if (piece.chessPointTimer > 0) piece.chessPointTimer--;
+        });
+
+        applyKingAuras();
+        applyControlPointRules();
+
+        if (frameCount % 15 === 0) renderTacticalChessUI();
+    }
+
+    if (typeof update === 'function' && !update.__farrelChessRevampWrapped) {
+        const previousUpdate = update;
+        update = function patchedUpdate() {
+            const result = previousUpdate.apply(this, arguments);
+            applyTacticalChessRules();
+            return result;
+        };
+        update.__farrelChessRevampWrapped = true;
+        window.update = update;
+    }
+
+    function drawChessWorldOverlay() {
+        if (GAME_MODE !== 'chess' || !chessState.active) return;
+
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(camera.zoom, camera.zoom);
+        ctx.translate(-camera.x, -camera.y);
+
+        const cols = 8;
+        const rows = 8;
+        const minX = canvas.width * 0.16;
+        const maxX = canvas.width * 0.84;
+        const minY = canvas.height * 0.10;
+        const maxY = canvas.height * 0.90;
+        const cellW = (maxX - minX) / cols;
+        const cellH = (maxY - minY) / rows;
+
+        ctx.save();
+        ctx.globalAlpha = 0.18;
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                ctx.fillStyle = (r + c) % 2 === 0 ? '#ffffff' : '#111111';
+                ctx.fillRect(minX + c * cellW, minY + r * cellH, cellW, cellH);
+            }
+        }
+        ctx.restore();
+
+        chessState.points.forEach(point => {
+            const ownerColor = point.owner === 1 ? '#00c3ff' : point.owner === 2 ? '#d62626' : '#f1c40f';
+            ctx.save();
+            ctx.globalAlpha = 0.25 + 0.08 * Math.sin(frameCount * 0.08);
+            ctx.fillStyle = ownerColor;
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, point.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 0.85;
+            ctx.strokeStyle = ownerColor;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.fillStyle = ownerColor;
+            ctx.font = '900 12px "Segoe UI", Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(point.name, point.x, point.y);
+            ctx.restore();
+        });
+
+        if (chessState.labels) {
+            liveChessPieces().forEach(piece => {
+                ctx.save();
+                ctx.font = '900 18px "Segoe UI Symbol", "Arial", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = 'rgba(0,0,0,.85)';
+                ctx.fillStyle = piece.isKing ? '#f1c40f' : '#ffffff';
+                const label = piece.chessLabel || '?';
+                ctx.strokeText(label, piece.x, piece.y - piece.radius - 14);
+                ctx.fillText(label, piece.x, piece.y - piece.radius - 14);
+
+                if (piece.chessGuardTimer > 0 || piece.chessPointTimer > 0) {
+                    ctx.globalAlpha = 0.4;
+                    ctx.strokeStyle = piece.chessGuardTimer > 0 ? '#f1c40f' : '#2ed573';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(piece.x, piece.y, piece.radius + 8, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                if (piece.isKing) {
+                    ctx.globalAlpha = 0.18;
+                    ctx.strokeStyle = '#f1c40f';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.arc(piece.x, piece.y, 145, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            });
+        }
+
+        ctx.restore();
+    }
+
+    function drawChessScreenHud() {
+        if (GAME_MODE !== 'chess' || !chessState.active) return;
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        const w = 250;
+        const h = 58;
+        const x = 12;
+        const y = 12;
+
+        ctx.fillStyle = 'rgba(0,0,0,.72)';
+        ctx.strokeStyle = '#f1c40f';
+        ctx.lineWidth = 2;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeRect(x, y, w, h);
+
+        ctx.fillStyle = '#f1c40f';
+        ctx.font = '900 13px "Segoe UI", Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText('TACTICAL CHESS', x + 10, y + 8);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '800 12px "Segoe UI", Arial';
+        const mode = chessState.objective === 'control' ? 'Control' : chessState.objective === 'hybrid' ? 'Hybrid' : 'King Hunt';
+        ctx.fillText(`${mode} · L ${Math.floor(chessState.control[1] || 0)} | R ${Math.floor(chessState.control[2] || 0)}`, x + 10, y + 30);
+
+        ctx.restore();
+    }
+
+    if (typeof draw === 'function' && !draw.__farrelChessRevampWrapped) {
+        const previousDraw = draw;
+        draw = function patchedDraw() {
+            const result = previousDraw.apply(this, arguments);
+            drawChessWorldOverlay();
+            drawChessScreenHud();
+            return result;
+        };
+        draw.__farrelChessRevampWrapped = true;
+        window.draw = draw;
+    }
+
+    function showChessModeUI() {
+        const chess = safeEl('chessControls');
+        const standard = safeEl('standardControls');
+        const tournament = safeEl('tournamentControls');
+        const campaign = safeEl('campaignControls');
+        const squad = document.querySelector('.squad-section');
+        const title = safeEl('mainTitle');
+        const teamScore = safeEl('teamScoreDisplay');
+        const ffaScore = safeEl('ffaScoreDisplay');
+
+        if (chess) chess.style.display = 'flex';
+        if (standard) standard.style.display = 'none';
+        if (tournament) tournament.style.display = 'none';
+        if (campaign) campaign.style.display = 'none';
+        if (squad) squad.style.display = 'none';
+        if (title) title.innerHTML = '<span style="color:#6c5ce7">TACTICAL</span> <span style="color:#f1c40f">CHESS</span>';
+        if (teamScore) teamScore.style.display = 'inline';
+        if (ffaScore) ffaScore.style.display = 'none';
+
+        isTournamentMatch = false;
+        isSetupPhase = true;
+        renderTacticalChessUI();
+    }
+
+    function hideChessModeUI() {
+        const chess = safeEl('chessControls');
+        if (chess) chess.style.display = 'none';
+    }
+
+    if (typeof toggleGameMode === 'function' && !toggleGameMode.__farrelChessRevampWrapped) {
+        const previousToggleGameMode = toggleGameMode;
+        toggleGameMode = function patchedToggleGameMode() {
+            const modeSelect = safeEl('modeSelect');
+            const chosen = modeSelect ? modeSelect.value : GAME_MODE;
+            const result = previousToggleGameMode.apply(this, arguments);
+
+            if (chosen === 'chess') {
+                GAME_MODE = 'chess';
+                showChessModeUI();
+                if (!chessState.active || !entities.some(e => e.chessPiece)) {
+                    setupTacticalChessBoard(false);
+                }
+            } else {
+                hideChessModeUI();
+            }
+
+            return result;
+        };
+        toggleGameMode.__farrelChessRevampWrapped = true;
+        window.toggleGameMode = toggleGameMode;
+    }
+
+    if (typeof syncFullscreenSetupControls === 'function' && !syncFullscreenSetupControls.__farrelChessRevampWrapped) {
+        const previousSyncFullscreen = syncFullscreenSetupControls;
+        syncFullscreenSetupControls = function patchedSyncFullscreenSetupControls() {
+            const fsMode = safeEl('fsModeSelect');
+            if (fsMode && !Array.from(fsMode.options).some(opt => opt.value === 'chess')) {
+                fsMode.insertAdjacentHTML('beforeend', '<option value="chess">Tactical Chess</option>');
+            }
+            return previousSyncFullscreen.apply(this, arguments);
+        };
+        syncFullscreenSetupControls.__farrelChessRevampWrapped = true;
+        window.syncFullscreenSetupControls = syncFullscreenSetupControls;
+    }
+
+    function bootFarrelTournamentChessPatch() {
+        loadChessConfig();
+        renderTacticalChessUI();
+        if (typeof window.updateTournamentUI === 'function') window.updateTournamentUI();
+
+        const modeSelect = safeEl('modeSelect');
+        if (modeSelect && modeSelect.value === 'chess') showChessModeUI();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootFarrelTournamentChessPatch);
+    } else {
+        bootFarrelTournamentChessPatch();
+    }
+})();
+
+
+/* --- FARREL TOURNAMENT COUNTER DUPLICATE-ID CLEANUP --- */
+(function farrelTournamentCounterCleanup() {
+    function syncAllTournamentCounters() {
+        const bracket = document.getElementById('tourneyBracketSize');
+        const bracketSize = bracket ? parseInt(bracket.value, 10) || 16 : 16;
+        const count = Array.isArray(customTeamPool) ? customTeamPool.length : 0;
+        const text = `${count}/${bracketSize}`;
+
+        const full = document.getElementById('poolCounter');
+        const mini = document.getElementById('poolCounterMini');
+        if (full) full.innerText = text;
+        if (mini) mini.innerText = text;
+    }
+
+    if (typeof window.updatePoolUI === 'function' && !window.updatePoolUI.__farrelCounterCleanupWrapped) {
+        const oldUpdatePoolUI = window.updatePoolUI;
+        window.updatePoolUI = function patchedCounterUpdatePoolUI() {
+            const result = oldUpdatePoolUI.apply(this, arguments);
+            syncAllTournamentCounters();
+            return result;
+        };
+        window.updatePoolUI.__farrelCounterCleanupWrapped = true;
+        try { updatePoolUI = window.updatePoolUI; } catch (err) {}
+    }
+
+    if (typeof window.updateTournamentUI === 'function' && !window.updateTournamentUI.__farrelCounterCleanupWrapped) {
+        const oldUpdateTournamentUI = window.updateTournamentUI;
+        window.updateTournamentUI = function patchedCounterUpdateTournamentUI() {
+            const result = oldUpdateTournamentUI.apply(this, arguments);
+            syncAllTournamentCounters();
+            return result;
+        };
+        window.updateTournamentUI.__farrelCounterCleanupWrapped = true;
+        try { updateTournamentUI = window.updateTournamentUI; } catch (err) {}
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', syncAllTournamentCounters);
+    } else {
+        syncAllTournamentCounters();
+    }
+})();
+
+
+
+function exitTacticalChessMode() {
+    const modeSelect = document.getElementById('modeSelect');
+    if (modeSelect) modeSelect.value = 'team';
+
+    try {
+        GAME_MODE = 'team';
+    } catch (err) {
+        // Ignore if GAME_MODE is not writable in this browser context.
+    }
+
+    if (typeof toggleGameMode === 'function') toggleGameMode();
+    if (typeof showRow === 'function') showRow(1);
+
+    const panel = document.getElementById('controlsPanel');
+    if (panel) panel.classList.remove('chess-mode-active');
+}
+window.exitTacticalChessMode = exitTacticalChessMode;
+
+// --- FARREL PATCH: TACTICAL CHESS SCROLL MODE SYNC ---
+(function () {
+    function syncTacticalChessScrollMode() {
+        const panel = document.getElementById('controlsPanel');
+        const chess = document.getElementById('chessControls');
+        const modeSelect = document.getElementById('modeSelect');
+
+        if (!panel || !chess) return;
+
+        let modeIsChess = false;
+        try {
+            modeIsChess = (typeof GAME_MODE !== 'undefined' && GAME_MODE === 'chess');
+        } catch (err) {
+            modeIsChess = false;
+        }
+
+        const selectIsChess = !!(modeSelect && modeSelect.value === 'chess');
+        const chessIsVisible = chess.style.display && chess.style.display !== 'none';
+
+        panel.classList.toggle('chess-mode-active', modeIsChess || selectIsChess || chessIsVisible);
+
+        if (modeIsChess || selectIsChess || chessIsVisible) {
+            chess.scrollTop = Math.min(chess.scrollTop, Math.max(0, chess.scrollHeight - chess.clientHeight));
+        }
+    }
+
+    function wrapFunctionOnce(name, marker) {
+        if (typeof window[name] !== 'function') return;
+        if (window[name][marker]) return;
+
+        const oldFn = window[name];
+        const wrapped = function () {
+            const result = oldFn.apply(this, arguments);
+            setTimeout(syncTacticalChessScrollMode, 0);
+            return result;
+        };
+
+        wrapped[marker] = true;
+        window[name] = wrapped;
+
+        try {
+            if (name === 'toggleGameMode') toggleGameMode = wrapped;
+            if (name === 'showRow') showRow = wrapped;
+        } catch (err) {
+            // Some browsers may not allow rebinding; window assignment still works for inline handlers.
+        }
+    }
+
+    wrapFunctionOnce('toggleGameMode', '__farrelChessScrollWrapped');
+    wrapFunctionOnce('showRow', '__farrelChessScrollWrapped');
+
+    document.addEventListener('DOMContentLoaded', syncTacticalChessScrollMode);
+    window.addEventListener('load', syncTacticalChessScrollMode);
+
+    // Keep the class accurate even when older code changes display styles directly.
+    setTimeout(syncTacticalChessScrollMode, 0);
+    setInterval(syncTacticalChessScrollMode, 600);
+})();
