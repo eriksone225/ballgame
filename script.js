@@ -11241,6 +11241,18 @@ if (GAME_MODE === 'tournament' && !isTournamentMatch && tournamentData.active) {
         arenaColor = isDark ? '#3E2723' : '#8D6E63'; // Muddy Brown
     } else if (ARENA_THEME === 'snow') {
         arenaColor = isDark ? '#78909C' : '#F0F8FF'; // Alice Blue / Blue Grey
+    } else if (ARENA_THEME === 'neon') {
+        arenaColor = isDark ? '#07111f' : '#e9fbff';
+    } else if (ARENA_THEME === 'volcano') {
+        arenaColor = isDark ? '#24100b' : '#5b2a1f';
+    } else if (ARENA_THEME === 'space') {
+        arenaColor = isDark ? '#030713' : '#101827';
+    } else if (ARENA_THEME === 'forest') {
+        arenaColor = isDark ? '#102016' : '#dff2d7';
+    } else if (ARENA_THEME === 'aquarium') {
+        arenaColor = isDark ? '#062437' : '#d5fbff';
+    } else if (ARENA_THEME === 'midnight') {
+        arenaColor = '#080b12';
     } else {
         // Standard White/Dark
        arenaColor = isDark ? '#333333' : '#ffffff';
@@ -12141,50 +12153,148 @@ else if (e.type === 'duplicator' && e.isOriginal) {
 }
 
 else if (e.type === 'alchemist') {
-    // 1. PLAGUE DOCTOR MASK
-    ctx.fillStyle = '#333'; // Dark leather mask
-    ctx.beginPath(); 
-    ctx.moveTo(8, -8); // Top of beak base
-    ctx.lineTo(35, 2); // Tip of beak (Long)
-    ctx.lineTo(8, 12); // Bottom of beak base
-    ctx.fill(); 
-    
-    // 2. GLOWING EYE
-    ctx.fillStyle = '#ccff00'; 
-    ctx.beginPath(); 
-    ctx.arc(8, -5, 4, 0, Math.PI*2); 
-    ctx.fill();
-    
-    // 3. HAT RIM
-    ctx.fillStyle = '#111';
-    ctx.beginPath();
-    ctx.ellipse(0, -12, 18, 4, 0, 0, Math.PI*2);
-    ctx.fill();
-
-    // 4. DYNAMIC FLASK (The gameplay indicator)
-    // Determine color based on the cycle logic
-    let flaskColor = '#9932cc'; // Default Purple (Freeze)
-    if (e.potionCycle === 1) flaskColor = '#32cd32'; // Green (Poison)
-    if (e.potionCycle === 3) flaskColor = '#ff4500'; // Orange (Blast)
-    
-    // Draw the Flask
     ctx.save();
-    // Moved to (25, 10) so it sits slightly under the beak
-    ctx.translate(25, 10); 
-    ctx.rotate(Math.sin(frameCount * 0.1) * 0.2); // Animate it bobbing slightly
-    
-    // Liquid
+
+    const cd = Math.max(0, e.alchemyCooldown || 0);
+    const healCd = Math.max(0, e.alchemyHealCooldown || 0);
+    const pulse = Math.sin(frameCount * 0.16 + (e.id || 0)) * 1.5;
+    const readyToThrow = cd <= 12;
+    const readyToHeal = healCd <= 18;
+    const flaskColor = readyToHeal ? '#55efc4' : (readyToThrow ? '#a3e635' : '#6c5ce7');
+    const flaskGlow = readyToHeal ? '#00cec9' : (readyToThrow ? '#b8ff4d' : '#c084fc');
+
+    // Soft alchemy aura, drawn above the ball so the class is readable even zoomed out.
+    ctx.globalAlpha = 0.78;
+    ctx.strokeStyle = flaskGlow;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = flaskGlow;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(0, 0, e.radius + 7 + pulse, 0.18, Math.PI * 1.85);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+
+    // Short cloak/collar behind the mask.
+    ctx.fillStyle = 'rgba(35, 28, 46, 0.92)';
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-e.radius * 0.42, -e.radius * 0.68);
+    ctx.quadraticCurveTo(-e.radius * 0.95, 0, -e.radius * 0.36, e.radius * 0.72);
+    ctx.lineTo(e.radius * 0.12, e.radius * 0.52);
+    ctx.lineTo(e.radius * 0.12, -e.radius * 0.52);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Plague-doctor face plate and shorter beak so it no longer looks like a random spike.
+    ctx.fillStyle = '#262633';
+    ctx.strokeStyle = '#050505';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.ellipse(e.radius * 0.28, 0, 12, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#2f2f3f';
+    ctx.beginPath();
+    ctx.moveTo(e.radius * 0.48, -7);
+    ctx.quadraticCurveTo(e.radius + 20, 0, e.radius * 0.48, 9);
+    ctx.quadraticCurveTo(e.radius * 0.64, 1, e.radius * 0.48, -7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Glowing goggles.
+    ctx.fillStyle = '#dfff37';
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 1.6;
+    [-5, 5].forEach(yy => {
+        ctx.beginPath();
+        ctx.arc(e.radius * 0.34, yy, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    });
+
+    // Hat brim and top hat, readable silhouette.
+    ctx.fillStyle = '#11131a';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(-1, -e.radius - 5, 21, 5.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillRect(-9, -e.radius - 25, 18, 20);
+    ctx.strokeRect(-9, -e.radius - 25, 18, 20);
+    ctx.fillStyle = '#55efc4';
+    ctx.fillRect(-8, -e.radius - 12, 16, 3);
+
+    // Bandolier strap and potion bottle on body.
+    ctx.strokeStyle = '#f8e9c7';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-e.radius * 0.50, -e.radius * 0.45);
+    ctx.lineTo(e.radius * 0.34, e.radius * 0.45);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(e.radius * 0.58, e.radius * 0.62);
+    ctx.rotate(Math.sin(frameCount * 0.12) * 0.12);
+    ctx.shadowColor = flaskGlow;
+    ctx.shadowBlur = readyToThrow || readyToHeal ? 12 : 5;
+    ctx.fillStyle = flaskColor;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-8, -2, 16, 15, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#dfe6e9';
+    ctx.fillRect(-3, -10, 6, 9);
+    ctx.strokeStyle = '#fff';
+    ctx.strokeRect(-3, -10, 6, 9);
+    ctx.restore();
+
+    // Throwing arm with small bottle, aimed forward.
+    ctx.strokeStyle = '#2d3436';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(e.radius * 0.22, -e.radius * 0.24);
+    ctx.lineTo(e.radius + 11, -e.radius * 0.34);
+    ctx.stroke();
+
     ctx.fillStyle = flaskColor;
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); 
-    ctx.arc(0, 5, 8, 0, Math.PI*2); // Flask Bulb
-    ctx.fill(); 
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(e.radius + 15, -e.radius * 0.36, 6, 0, Math.PI * 2);
+    ctx.fill();
     ctx.stroke();
-    
-    // Neck of flask
-    ctx.fillStyle = '#ccc'; 
-    ctx.fillRect(-3, -8, 6, 8); 
+
+    // Status hint ring: green cross when healing is ready, acid bubbles when attack is ready.
+    if (readyToHeal) {
+        ctx.strokeStyle = '#55efc4';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-5, e.radius + 11);
+        ctx.lineTo(5, e.radius + 11);
+        ctx.moveTo(0, e.radius + 6);
+        ctx.lineTo(0, e.radius + 16);
+        ctx.stroke();
+    } else if (readyToThrow) {
+        ctx.fillStyle = '#a3e635';
+        for (let i = 0; i < 3; i++) {
+            ctx.globalAlpha = 0.72;
+            ctx.beginPath();
+            ctx.arc(-e.radius - 6 + i * 8, -e.radius * 0.56 - Math.sin(frameCount * 0.12 + i) * 3, 2.5 + i, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+
     ctx.restore();
 }
 else if (e.type === 'chrono') {
@@ -16034,7 +16144,9 @@ handleSpearerAI = function upgradedHandleSpearerAI(e) {
             }
 
             if (type === 'bombman') {
-                fighter.mass = 4.6;
+                fighter.mass = 18;
+                fighter.pushResistance = 0.94;
+                fighter.knockbackResistance = 0.94;
                 fighter.radius = Math.max(fighter.radius || 20, 24);
                 fighter.reach = 85;
                 fighter.bravery = 1.0;
@@ -17491,7 +17603,7 @@ handleSpearerAI = function upgradedHandleSpearerAI(e) {
 
 /* --- FARREL MASS MAPS + UNIQUE FFA COLORS + FUN FEATURES PATCH --- */
 (function farrelMassMapsColorsFunPatch() {
-    const MASS_RENDER_LIMIT = 120;
+    const MASS_RENDER_LIMIT = Number.MAX_SAFE_INTEGER;
     const MASS_MAP_SIZES = {
         small: { w: 400, h: 400 },
         normal: { w: 600, h: 500 },
@@ -17515,7 +17627,7 @@ handleSpearerAI = function upgradedHandleSpearerAI(e) {
 
     function getDesiredCount(prefix) {
         const input = document.getElementById(prefix + 'Count');
-        return safeNum(input ? input.value : 1, 1, 1, 10000);
+        return safeNum(input ? input.value : 1, 1, 1, Number.MAX_SAFE_INTEGER);
     }
 
     function getDesiredTotalFighters() {
@@ -17723,7 +17835,8 @@ handleSpearerAI = function upgradedHandleSpearerAI(e) {
     if (typeof generateSelectors === 'function' && !generateSelectors.__farrelMassUIWrapped) {
         const oldGenerateSelectors = generateSelectors;
         generateSelectors = function farrelMassGenerateSelectors(containerId, count, prefix, previousTypes) {
-            const actualCount = safeNum(count, 1, 0, 10000);
+            const rawCount = Number(count);
+            const actualCount = Number.isFinite(rawCount) ? Math.max(0, Math.floor(rawCount)) : 1;
             const renderCount = Math.min(actualCount, MASS_RENDER_LIMIT);
             const result = oldGenerateSelectors.call(this, containerId, renderCount, prefix, previousTypes);
 
@@ -18250,6 +18363,80 @@ handleSpearerAI = function upgradedHandleSpearerAI(e) {
         if (typeof playSound === 'function') playSound('equip', 0.5);
     }
 
+    function getPowerDropDesireScore(fighter, drop) {
+        if (!fighter || !drop || drop.dead) return Infinity;
+
+        const distance = safeDist(fighter, drop);
+        const hpRatio = (fighter.maxHp || 1) > 0 ? fighter.hp / fighter.maxHp : 1;
+        let score = distance;
+
+        // Injured fighters value heal drops more, ranged/fragile fighters value shields,
+        // and melee fighters value speed/damage because it helps them close and finish.
+        if (drop.type === 'heal') score -= (1 - hpRatio) * 240;
+        if (drop.type === 'shield' && hpRatio < 0.65) score -= 95;
+        if (drop.type === 'speed' && ['unarmed', 'samurai', 'scythe', 'rogue', 'trapper', 'spearer', 'spider', 'bombman', 'guardian', 'magnet'].includes(fighter.type)) score -= 80;
+        if (drop.type === 'damage' && ['soldier', 'bow', 'wizard', 'laser', 'missile', 'spearer', 'aquamarine', 'chronomancer'].includes(fighter.type)) score -= 75;
+
+        // Do not make completely safe backliners cross the entire arena for an orb.
+        if (distance > 520 && hpRatio > 0.72 && drop.type !== 'heal') score += 180;
+
+        return score;
+    }
+
+    function steerFightersTowardPowerDrops(fighters) {
+        if (!farrelPowerDropsEnabled || !farrelPowerDrops.length || !fighters.length) return;
+
+        fighters.forEach(fighter => {
+            if (!fighter || fighter.hp <= 0 || fighter.frozen > 0 || fighter.isDancing) return;
+
+            let bestDrop = null;
+            let bestScore = Infinity;
+            farrelPowerDrops.forEach(drop => {
+                if (!drop || drop.dead) return;
+                const score = getPowerDropDesireScore(fighter, drop);
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestDrop = drop;
+                }
+            });
+
+            if (!bestDrop) return;
+
+            const distance = safeDist(fighter, bestDrop);
+            if (distance > 1150) return;
+
+            const hpRatio = (fighter.maxHp || 1) > 0 ? fighter.hp / fighter.maxHp : 1;
+            const dx = bestDrop.x - fighter.x;
+            const dy = bestDrop.y - fighter.y;
+            const angle = Math.atan2(dy, dx);
+
+            // Make powerups feel intentional. Fighters break off harder for the kind of orb they actually need.
+            let value = 0.72;
+            if (bestDrop.type === 'heal') value += (1 - hpRatio) * 1.55;
+            if (bestDrop.type === 'shield' && hpRatio < 0.70) value += 0.72;
+            if (bestDrop.type === 'damage') value += 0.44;
+            if (bestDrop.type === 'speed') value += 0.36;
+            if (distance < 260) value += 0.55;
+            if (distance > 760 && hpRatio > 0.75 && bestDrop.type !== 'heal') value *= 0.55;
+
+            const pull = clamp(0.075 + value * 0.095, 0.08, 0.28);
+            fighter.vx += Math.cos(angle) * pull;
+            fighter.vy += Math.sin(angle) * pull;
+            fighter.farrelOrbTargetId = bestDrop.id;
+            fighter.farrelOrbHuntUntil = frameCount + 42;
+
+            // If the orb is close, temporarily bias the fighter's facing and target memory toward the pickup.
+            if (distance < 360) {
+                fighter.angle = angle;
+                fighter.decisionNoise = Math.max(0, (fighter.decisionNoise || 0) * 0.985);
+            }
+
+            if (frameCount % 22 === 0 && distance < 420 && typeof spawnParticles === 'function') {
+                spawnParticles(fighter.x, fighter.y, bestDrop.color || '#f1c40f', 2);
+            }
+        });
+    }
+
     function updatePowerDrops() {
         if (!farrelPowerDropsEnabled || isSetupPhase || gameOverTriggered) return;
 
@@ -18259,6 +18446,7 @@ handleSpearerAI = function upgradedHandleSpearerAI(e) {
         }
 
         const fighters = mainCombatFighters();
+        steerFightersTowardPowerDrops(fighters);
         farrelPowerDrops.forEach(drop => {
             drop.life--;
             fighters.forEach(f => {
@@ -20997,4 +21185,2006 @@ window.exitTacticalChessMode = exitTacticalChessMode;
     // Keep the class accurate even when older code changes display styles directly.
     setTimeout(syncTacticalChessScrollMode, 0);
     setInterval(syncTacticalChessScrollMode, 600);
+})();
+
+
+/* --- FARREL DEDICATED MODE UI + UNLIMITED CUSTOM + HEAVY BOMBMAN PATCH --- */
+(function farrelDedicatedModeUnlimitedHeavyBombmanPatch() {
+    const DEDICATED_MODES = new Set(['tournament', 'campaign', 'chess']);
+
+    function el(id) { return document.getElementById(id); }
+
+    function currentModeValue() {
+        const select = el('modeSelect');
+        return select ? select.value : GAME_MODE;
+    }
+
+    function setDisplay(node, value) {
+        if (!node) return;
+        node.style.setProperty('display', value, 'important');
+    }
+
+    function removeCustomizationCaps() {
+        ['p1Count', 'p2Count', 'customMapWidth', 'customMapHeight'].forEach(id => {
+            const input = el(id);
+            if (input) input.removeAttribute('max');
+        });
+    }
+
+    function setDedicatedModeClasses(mode) {
+        const panel = el('controlsPanel');
+        const body = document.body;
+        const dedicated = DEDICATED_MODES.has(mode);
+
+        if (panel) {
+            panel.classList.toggle('dedicated-mode-active', dedicated);
+            panel.classList.toggle('mode-tournament', mode === 'tournament');
+            panel.classList.toggle('mode-campaign', mode === 'campaign');
+            panel.classList.toggle('mode-chess', mode === 'chess');
+            panel.classList.toggle('normal-battle-mode', !dedicated);
+        }
+
+        if (body) {
+            body.classList.toggle('dedicated-mode-active', dedicated);
+            body.classList.toggle('mode-tournament', mode === 'tournament');
+            body.classList.toggle('mode-campaign', mode === 'campaign');
+            body.classList.toggle('mode-chess', mode === 'chess');
+        }
+    }
+
+    function showOnlyModeHub(mode) {
+        const dedicated = DEDICATED_MODES.has(mode);
+        const standard = el('standardControls');
+        const tournament = el('tournamentControls');
+        const campaign = el('campaignControls');
+        const chess = el('chessControls');
+        const squad = el('squadSection') || document.querySelector('.squad-section');
+        const title = el('mainTitle');
+        const teamScore = el('teamScoreDisplay');
+        const ffaScore = el('ffaScoreDisplay');
+
+        setDedicatedModeClasses(mode);
+        removeCustomizationCaps();
+
+        if (standard) setDisplay(standard, dedicated ? 'none' : 'grid');
+        if (squad) setDisplay(squad, dedicated ? 'none' : 'flex');
+
+        if (tournament) setDisplay(tournament, mode === 'tournament' ? 'flex' : 'none');
+        if (campaign) setDisplay(campaign, mode === 'campaign' ? 'flex' : 'none');
+        if (chess) setDisplay(chess, mode === 'chess' ? 'flex' : 'none');
+
+        if (dedicated && typeof showRow === 'function') {
+            const row1 = el('row-1');
+            if (!row1 || !row1.classList.contains('active-control-row')) {
+                showRow(1);
+            }
+        }
+
+        if (mode === 'tournament') {
+            if (title) title.innerHTML = '<span style="color:gold">TOURNAMENT</span> <span style="color:#f1c40f">BRACKET</span>';
+            if (teamScore) teamScore.style.display = 'inline';
+            if (ffaScore) ffaScore.style.display = 'none';
+            isSetupPhase = true;
+            isTournamentMatch = false;
+            if (typeof updateTournamentUI === 'function') updateTournamentUI();
+        } else if (mode === 'campaign') {
+            if (title) title.innerHTML = '<span style="color:#2ed573">CAMPAIGN</span> <span style="color:#f1c40f">ADVENTURE</span>';
+            if (teamScore) teamScore.style.display = 'inline';
+            if (ffaScore) ffaScore.style.display = 'none';
+            isSetupPhase = true;
+            isTournamentMatch = false;
+            if (typeof renderCampaignUI === 'function') renderCampaignUI();
+        } else if (mode === 'chess') {
+            if (title) title.innerHTML = '<span style="color:#6c5ce7">TACTICAL</span> <span style="color:#f1c40f">CHESS</span>';
+            if (teamScore) teamScore.style.display = 'inline';
+            if (ffaScore) ffaScore.style.display = 'none';
+            isSetupPhase = true;
+            isTournamentMatch = false;
+            if (typeof renderTacticalChessUI === 'function') renderTacticalChessUI();
+        }
+    }
+
+    function exitDedicatedMode(targetMode = 'team') {
+        const select = el('modeSelect');
+        if (select) select.value = targetMode;
+        GAME_MODE = targetMode;
+        if (typeof toggleGameMode === 'function') {
+            toggleGameMode();
+        } else {
+            showOnlyModeHub(targetMode);
+        }
+    }
+
+    window.exitCampaignMode = function exitCampaignMode() {
+        exitDedicatedMode('team');
+        if (typeof showCustomMessage === 'function') {
+            showCustomMessage('Campaign', 'Returned to regular battle setup. Your campaign progress stays saved.');
+        }
+    };
+
+    window.exitTournamentMode = function exitTournamentMode() {
+        if (typeof exitTournament === 'function') {
+            exitTournament();
+        }
+        exitDedicatedMode('team');
+    };
+
+    if (typeof toggleGameMode === 'function' && !toggleGameMode.__farrelDedicatedModeWrapped) {
+        const previousToggleGameMode = toggleGameMode;
+        toggleGameMode = function farrelDedicatedModeToggleGameModeWrapper() {
+            const result = previousToggleGameMode.apply(this, arguments);
+            const mode = currentModeValue();
+            showOnlyModeHub(mode);
+            return result;
+        };
+        toggleGameMode.__farrelDedicatedModeWrapped = true;
+        window.toggleGameMode = toggleGameMode;
+    }
+
+    if (typeof showRow === 'function' && !showRow.__farrelDedicatedModeWrapped) {
+        const previousShowRow = showRow;
+        showRow = function farrelDedicatedModeShowRowWrapper(rowNumber) {
+            const mode = currentModeValue();
+            if (DEDICATED_MODES.has(mode) && Number(rowNumber) !== 1) {
+                rowNumber = 1;
+            }
+            const result = previousShowRow.apply(this, arguments.length ? [rowNumber] : arguments);
+            showOnlyModeHub(currentModeValue());
+            return result;
+        };
+        showRow.__farrelDedicatedModeWrapped = true;
+        window.showRow = showRow;
+    }
+
+    if (typeof generateSelectors === 'function' && !generateSelectors.__farrelUnlimitedEditableWrapped) {
+        const previousGenerateSelectors = generateSelectors;
+        generateSelectors = function farrelUnlimitedEditableGenerateSelectors(containerId, count, prefix, previousTypes) {
+            // This second wrapper makes sure no later mass-mode patch silently re-limits editable cards to 120.
+            const rawCount = Number(count);
+            const unlimitedCount = Number.isFinite(rawCount) ? Math.max(0, Math.floor(rawCount)) : count;
+            return previousGenerateSelectors.call(this, containerId, unlimitedCount, prefix, previousTypes);
+        };
+        generateSelectors.__farrelUnlimitedEditableWrapped = true;
+        window.generateSelectors = generateSelectors;
+    }
+
+    function reinforceBombmanBody(fighter) {
+        if (!fighter || fighter.type !== 'bombman') return;
+        fighter.mass = Math.max(fighter.mass || 0, 18);
+        fighter.radius = Math.max(fighter.radius || 0, 25);
+        fighter.pushResistance = 0.94;
+        fighter.knockbackResistance = 0.94;
+    }
+
+    if (typeof applyClassProps === 'function' && !applyClassProps.__farrelHeavyBombmanWrapped) {
+        const previousApplyClassProps = applyClassProps;
+        applyClassProps = function farrelHeavyBombmanApplyClassProps(fighter, type) {
+            previousApplyClassProps.apply(this, arguments);
+            if (type === 'bombman') reinforceBombmanBody(fighter);
+        };
+        applyClassProps.__farrelHeavyBombmanWrapped = true;
+        window.applyClassProps = applyClassProps;
+    }
+
+    if (typeof damageEntity === 'function' && !damageEntity.__farrelBombmanPushResistWrapped) {
+        const previousDamageEntity = damageEntity;
+        damageEntity = function farrelBombmanPushResistDamageEntity(victim, amount, impactX, impactY, damageSource) {
+            const beforeVX = victim && victim.type === 'bombman' ? victim.vx || 0 : 0;
+            const beforeVY = victim && victim.type === 'bombman' ? victim.vy || 0 : 0;
+            const result = previousDamageEntity.apply(this, arguments);
+
+            if (victim && victim.type === 'bombman') {
+                reinforceBombmanBody(victim);
+                const resistance = victim.knockbackResistance || 0.94;
+                victim.vx = beforeVX + ((victim.vx || 0) - beforeVX) * (1 - resistance);
+                victim.vy = beforeVY + ((victim.vy || 0) - beforeVY) * (1 - resistance);
+            }
+
+            return result;
+        };
+        damageEntity.__farrelBombmanPushResistWrapped = true;
+        window.damageEntity = damageEntity;
+    }
+
+    if (typeof update === 'function' && !update.__farrelHeavyBombmanWrapped) {
+        const previousUpdate = update;
+        update = function farrelHeavyBombmanUpdateWrapper() {
+            const result = previousUpdate.apply(this, arguments);
+            if (typeof entities !== 'undefined') {
+                entities.forEach(fighter => {
+                    if (fighter && fighter.type === 'bombman' && fighter.hp > 0) {
+                        reinforceBombmanBody(fighter);
+                        // Stop explosion/projectile pushes from making him slide like a normal ball.
+                        const speed = Math.hypot(fighter.vx || 0, fighter.vy || 0);
+                        const maxAllowed = 6.5;
+                        if (speed > maxAllowed) {
+                            const scale = maxAllowed / speed;
+                            fighter.vx *= scale;
+                            fighter.vy *= scale;
+                        }
+                    }
+                });
+            }
+            return result;
+        };
+        update.__farrelHeavyBombmanWrapped = true;
+        window.update = update;
+    }
+
+    removeCustomizationCaps();
+    setTimeout(() => showOnlyModeHub(currentModeValue()), 0);
+})();
+
+
+/* --- FARREL EXPERIENCE PATCH: MAGNET, SMART DRAFT, AUTO BALANCE, METEORS, COACH RECAP --- */
+(function farrelExperiencePatch() {
+    if (window.__farrelExperiencePatchApplied) return;
+    window.__farrelExperiencePatchApplied = true;
+
+    let autoBalanceEnabled = false;
+    let meteorStormEnabled = false;
+    let coachRecapEnabled = true;
+    let farrelEventLog = [];
+    let farrelMeteorWarnings = [];
+    let farrelMeteorClock = 0;
+
+    function el(id) { return document.getElementById(id); }
+
+    function safeEsc(value) {
+        if (typeof escapeHtml === 'function') return escapeHtml(value);
+        return String(value ?? '').replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        }[c]));
+    }
+
+    function niceTypeName(type) {
+        if (!type) return 'Unknown';
+        return String(type).split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+
+    function getFighterBasePower(type) {
+        const data = FIGHTER_DATA[type] || {};
+        let power = Number(data.hp || 100);
+
+        const text = `${data.dmg || ''} ${data.ability || ''} ${data.desc || ''}`.toLowerCase();
+
+        if (text.includes('fatal') || text.includes('instakill') || text.includes('one shot')) power += 105;
+        if (text.includes('v. high') || text.includes('very high')) power += 70;
+        if (text.includes('high')) power += 45;
+        if (text.includes('medium')) power += 22;
+        if (text.includes('low')) power -= 5;
+        if (text.includes('heal') || text.includes('regen') || text.includes('lifesteal')) power += 28;
+        if (text.includes('turret') || text.includes('summon') || text.includes('swarm') || text.includes('duplicate')) power += 28;
+        if (text.includes('shield') || text.includes('block') || text.includes('invulnerable')) power += 24;
+        if (text.includes('explode') || text.includes('explosive') || text.includes('missile')) power += 34;
+        if (text.includes('freeze') || text.includes('stun') || text.includes('pin') || text.includes('control')) power += 22;
+        if (type === 'bombman') power += 125;
+        if (type === 'devourer') power += 105;
+        if (type === 'grower') power += 55;
+        if (type === 'magnet') power += 35;
+
+        return Math.max(35, Math.round(power));
+    }
+
+    function getTeamPower(team) {
+        return entities
+            .filter(e => e && e.hp > 0 && e.team === team && e.type !== 'turret' && e.type !== 'boid' && e.type !== 'mammoth_mount' && !e.parentId)
+            .reduce((sum, e) => sum + getFighterBasePower(e.realType || e.originalType || e.type), 0);
+    }
+
+    function formatTimeFromFrames(frames) {
+        const seconds = Math.max(0, Math.round((frames || 0) / 60));
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return mins ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`;
+    }
+
+    function updateFeatureButtons() {
+        const autoBtn = el('autoBalanceBtn');
+        if (autoBtn) {
+            autoBtn.innerText = autoBalanceEnabled ? 'Auto Balance: ON' : 'Auto Balance: OFF';
+            autoBtn.classList.toggle('active', autoBalanceEnabled);
+        }
+
+        const meteorBtn = el('meteorStormBtn');
+        if (meteorBtn) {
+            meteorBtn.innerText = meteorStormEnabled ? 'Meteor Storm: ON' : 'Meteor Storm: OFF';
+            meteorBtn.classList.toggle('active', meteorStormEnabled);
+        }
+
+        const coachBtn = el('coachRecapBtn');
+        if (coachBtn) {
+            coachBtn.innerText = coachRecapEnabled ? 'Coach Recap: ON' : 'Coach Recap: OFF';
+            coachBtn.classList.toggle('active', coachRecapEnabled);
+        }
+    }
+
+    window.toggleAutoBalance = function toggleAutoBalance() {
+        autoBalanceEnabled = !autoBalanceEnabled;
+        updateFeatureButtons();
+        if (typeof showCustomMessage === 'function') {
+            showCustomMessage('Auto Balance', autoBalanceEnabled ? 'Weaker teams will receive a small HP/damage correction at battle start.' : 'Team balancing disabled.');
+        }
+    };
+
+    window.toggleMeteorStorm = function toggleMeteorStorm() {
+        meteorStormEnabled = !meteorStormEnabled;
+        updateFeatureButtons();
+        if (typeof showCustomMessage === 'function') {
+            showCustomMessage('Meteor Storm', meteorStormEnabled ? 'Random meteor warnings can now appear during battles.' : 'Meteor storm disabled.');
+        }
+    };
+
+    window.toggleCoachRecap = function toggleCoachRecap() {
+        coachRecapEnabled = !coachRecapEnabled;
+        updateFeatureButtons();
+        if (typeof showCustomMessage === 'function') {
+            showCustomMessage('Coach Recap', coachRecapEnabled ? 'Battle recap will include timeline and tactical tips.' : 'Coach recap disabled.');
+        }
+    };
+
+    // FEATURE 1: New fighter — Magnet
+    function installMagnetFighter() {
+        if (!FIGHTER_DATA.magnet) {
+            FIGHTER_DATA.magnet = {
+                hp: 115,
+                dmg: 'Control',
+                ability: 'Magnetic Pull / Repel',
+                desc: 'Bends projectiles, yanks enemies out of position, then repels close threats with a shock pulse.'
+            };
+        }
+
+        if (typeof FIGHTER_VISUALS !== 'undefined' && !FIGHTER_VISUALS.magnet) {
+            FIGHTER_VISUALS.magnet = { tag: 'MG', color: '#2d3436', accent: '#00cec9' };
+        }
+
+        if (Array.isArray(FIGHTER_OPTIONS) && !FIGHTER_OPTIONS.includes('magnet')) {
+            FIGHTER_OPTIONS.push('magnet');
+            FIGHTER_OPTIONS.sort();
+        }
+    }
+
+    installMagnetFighter();
+
+    if (typeof applyClassProps === 'function' && !applyClassProps.__farrelMagnetWrapped) {
+        const previousApplyClassProps = applyClassProps;
+        applyClassProps = function farrelMagnetApplyClassProps(fighter, type) {
+            previousApplyClassProps.apply(this, arguments);
+            if (type === 'magnet') {
+                fighter.mass = Math.max(fighter.mass || 1, 1.45);
+                fighter.reach = 420;
+                fighter.magnetPullCooldown = fighter.magnetPullCooldown || 45;
+                fighter.magnetRepelCooldown = fighter.magnetRepelCooldown || 80;
+                fighter.magnetShieldPulse = fighter.magnetShieldPulse || 0;
+                fighter.bravery = Math.max(fighter.bravery || 0.5, 0.58);
+            }
+        };
+        applyClassProps.__farrelMagnetWrapped = true;
+        window.applyClassProps = applyClassProps;
+    }
+
+    function findMagnetTarget(e) {
+        let best = null;
+        let bestScore = Infinity;
+
+        entities.forEach(other => {
+            if (!other || other.hp <= 0 || other.team === e.team || other.id === e.id) return;
+            if (other.type === 'turret' || other.type === 'boid' || other.type === 'mammoth_mount') return;
+
+            const dx = other.x - e.x;
+            const dy = other.y - e.y;
+            const d = Math.hypot(dx, dy);
+            const threat = getFighterBasePower(other.realType || other.originalType || other.type);
+            const score = d - threat * 0.55;
+
+            if (score < bestScore) {
+                bestScore = score;
+                best = other;
+            }
+        });
+
+        return best;
+    }
+
+    function handleMagnetAI(e) {
+        if (!e || e.type !== 'magnet') return false;
+        if (isSetupPhase || e.hp <= 0 || e.isDancing || e.frozen > 0) return true;
+
+        if (e.magnetPullCooldown > 0) e.magnetPullCooldown--;
+        if (e.magnetRepelCooldown > 0) e.magnetRepelCooldown--;
+        if (e.magnetShieldPulse > 0) e.magnetShieldPulse--;
+
+        const target = (e.target && e.target.hp > 0 && e.target.team !== e.team) ? e.target : findMagnetTarget(e);
+        if (!target) return true;
+
+        e.target = target;
+        const dx = target.x - e.x;
+        const dy = target.y - e.y;
+        const d = Math.max(1, Math.hypot(dx, dy));
+        const angle = Math.atan2(dy, dx);
+        e.angle = angle;
+
+        if (d > 230) {
+            e.vx += Math.cos(angle) * 0.46;
+            e.vy += Math.sin(angle) * 0.46;
+        } else if (d < 125) {
+            e.vx -= Math.cos(angle) * 0.54;
+            e.vy -= Math.sin(angle) * 0.54;
+        } else {
+            e.vx += Math.cos(angle + Math.PI / 2) * 0.22;
+            e.vy += Math.sin(angle + Math.PI / 2) * 0.22;
+        }
+
+        if (e.magnetPullCooldown <= 0 && d < 430) {
+            target.vx += (e.x - target.x) / d * 5.5;
+            target.vy += (e.y - target.y) / d * 5.5;
+            damageEntity(target, 7, e.x, e.y, e);
+            e.magnetPullCooldown = 90;
+            e.magnetShieldPulse = 18;
+            spawnParticles(target.x, target.y, '#00cec9', 8);
+            spawnDamageText(target.x, target.y - 30, 'PULL', '#00cec9', true);
+            if (typeof playSound === 'function') playSound('zap');
+        }
+
+        if (e.magnetRepelCooldown <= 0 && d < 105) {
+            target.vx += dx / d * 12;
+            target.vy += dy / d * 12;
+            damageEntity(target, 18, e.x, e.y, e);
+            e.magnetRepelCooldown = 125;
+            e.magnetShieldPulse = 24;
+            spawnParticles(e.x, e.y, '#74b9ff', 18);
+            spawnDamageText(e.x, e.y - 34, 'REPEL', '#74b9ff', true);
+            if (typeof playSound === 'function') playSound('explosion_small');
+        }
+
+        return true;
+    }
+
+    if (typeof applyAI === 'function' && !applyAI.__farrelMagnetWrapped) {
+        const previousApplyAI = applyAI;
+        applyAI = function farrelMagnetApplyAI(e) {
+            if (e && e.type === 'magnet') {
+                if (handleMagnetAI(e)) return;
+            }
+            return previousApplyAI.apply(this, arguments);
+        };
+        applyAI.__farrelMagnetWrapped = true;
+        window.applyAI = applyAI;
+    }
+
+    function bendProjectilesAroundMagnets() {
+        if (typeof projectiles === 'undefined' || !Array.isArray(projectiles)) return;
+
+        const magnets = entities.filter(e => e && e.type === 'magnet' && e.hp > 0);
+        if (!magnets.length) return;
+
+        projectiles.forEach(p => {
+            if (!p || p.isMine || p.type === 'fish') return;
+
+            magnets.forEach(magnet => {
+                if (p.team === magnet.team) return;
+                const dx = magnet.x - p.x;
+                const dy = magnet.y - p.y;
+                const d = Math.max(1, Math.hypot(dx, dy));
+                if (d > 240) return;
+
+                // Curve hostile projectiles away just enough to feel like magnetic defense without becoming invincible.
+                const repel = (1 - d / 240) * 0.42;
+                p.vx -= dx / d * repel;
+                p.vy -= dy / d * repel;
+
+                if (d < 70 && frameCount % 4 === 0) {
+                    spawnParticles(p.x, p.y, '#00cec9', 1);
+                }
+            });
+        });
+    }
+
+    // FEATURE 2: Smart Draft
+    window.smartDraftSquads = function smartDraftSquads() {
+        const mode = (el('modeSelect') && el('modeSelect').value) || GAME_MODE;
+        if (mode === 'tournament' || mode === 'campaign' || mode === 'chess') {
+            if (typeof showCustomMessage === 'function') showCustomMessage('Smart Draft', 'Smart Draft is for Team, FFA, and Clan setup. Dedicated modes use their own hubs.');
+            return;
+        }
+
+        const p1CountEl = el('p1Count');
+        const p2CountEl = el('p2Count');
+        const leftCount = Math.max(1, parseInt(p1CountEl ? p1CountEl.value : 1, 10) || 1);
+        const rightCount = mode === 'ffa' ? 0 : Math.max(1, parseInt(p2CountEl ? p2CountEl.value : 1, 10) || 1);
+        const legal = FIGHTER_OPTIONS.filter(type => type !== 'empty' && type !== 'swarm');
+
+        if (!legal.length) return;
+
+        if (mode === 'ffa') {
+            if (p1CountEl) p1CountEl.value = leftCount;
+            if (typeof updateSquadUI === 'function') updateSquadUI();
+            setTimeout(() => {
+                document.querySelectorAll('.p1-input').forEach(input => {
+                    input.value = legal[Math.floor(Math.random() * legal.length)];
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+                if (typeof initializeSquads === 'function') initializeSquads();
+                if (typeof showCustomMessage === 'function') showCustomMessage('Smart Draft', `Created a chaotic ${leftCount}-fighter FFA draft.`);
+            }, 0);
+            return;
+        }
+
+        const total = leftCount + rightCount;
+        const candidates = Array.from({ length: total }, () => legal[Math.floor(Math.random() * legal.length)])
+            .sort((a, b) => getFighterBasePower(b) - getFighterBasePower(a));
+
+        const left = [];
+        const right = [];
+        let leftPower = 0;
+        let rightPower = 0;
+
+        candidates.forEach(type => {
+            const power = getFighterBasePower(type);
+            const leftNeeds = left.length < leftCount;
+            const rightNeeds = right.length < rightCount;
+
+            if (leftNeeds && (!rightNeeds || leftPower <= rightPower)) {
+                left.push(type);
+                leftPower += power;
+            } else if (rightNeeds) {
+                right.push(type);
+                rightPower += power;
+            } else {
+                left.push(type);
+                leftPower += power;
+            }
+        });
+
+        if (p1CountEl) p1CountEl.value = leftCount;
+        if (p2CountEl) p2CountEl.value = rightCount;
+        if (typeof updateSquadUI === 'function') updateSquadUI();
+
+        setTimeout(() => {
+            document.querySelectorAll('.p1-input').forEach((input, i) => {
+                input.value = left[i] || legal[Math.floor(Math.random() * legal.length)];
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+
+            document.querySelectorAll('.p2-input').forEach((input, i) => {
+                input.value = right[i] || legal[Math.floor(Math.random() * legal.length)];
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+
+            if (typeof initializeSquads === 'function') initializeSquads();
+
+            const diff = Math.abs(leftPower - rightPower);
+            const avg = Math.max(1, (leftPower + rightPower) / 2);
+            const diffText = Math.round((diff / avg) * 100);
+
+            if (typeof showCustomMessage === 'function') {
+                showCustomMessage('Smart Draft Ready', `Balanced random matchup built. Estimated power gap: ${diffText}%.`);
+            }
+        }, 0);
+    };
+
+    // FEATURE 3: Auto Balance
+    function applyAutoBalance() {
+        if (!autoBalanceEnabled) return;
+        if (!['team', 'clan'].includes(GAME_MODE)) return;
+
+        const p1 = getTeamPower(1);
+        const p2 = getTeamPower(2);
+        if (!p1 || !p2) return;
+
+        const stronger = Math.max(p1, p2);
+        const weaker = Math.min(p1, p2);
+        const gap = stronger / Math.max(1, weaker);
+
+        if (gap < 1.18) return;
+
+        const weakTeam = p1 < p2 ? 1 : 2;
+        const boost = Math.min(1.35, 1 + (gap - 1) * 0.42);
+        const damageBoost = Math.min(1.22, 1 + (gap - 1) * 0.23);
+
+        entities.forEach(e => {
+            if (!e || e.hp <= 0 || e.team !== weakTeam) return;
+            if (e.type === 'turret' || e.type === 'boid' || e.type === 'mammoth_mount' || e.parentId) return;
+            if (e.farrelAutoBalanced) return;
+
+            e.farrelAutoBalanced = true;
+            e.maxHp *= boost;
+            e.hp *= boost;
+            e.dmgMult = (e.dmgMult || 1) * damageBoost;
+            e.battleBalanceBoost = boost;
+            spawnParticles(e.x, e.y, '#55efc4', 8);
+        });
+
+        farrelEventLog.push({
+            frame: frameCount,
+            text: `Auto Balance boosted Team ${weakTeam} by ${Math.round((boost - 1) * 100)}% HP and ${Math.round((damageBoost - 1) * 100)}% damage.`
+        });
+
+        spawnDamageText(canvas.width / 2, 60, 'AUTO BALANCE', '#55efc4', true);
+    }
+
+    // FEATURE 4: Meteor Storm
+    function updateMeteorStorm() {
+        if (!meteorStormEnabled || isSetupPhase || !gameActive || gameOverTriggered) {
+            farrelMeteorWarnings = [];
+            farrelMeteorClock = 0;
+            return;
+        }
+
+        if (GAME_MODE === 'tournament' && !isTournamentMatch) return;
+        if (GAME_MODE === 'chess' && isSetupPhase) return;
+
+        farrelMeteorClock++;
+
+        const livingCount = entities.filter(e => e && e.hp > 0 && e.type !== 'turret' && e.type !== 'boid' && !e.parentId).length;
+        const interval = livingCount > 20 ? 90 : 145;
+
+        if (farrelMeteorClock > interval) {
+            farrelMeteorClock = 0;
+
+            const target = entities
+                .filter(e => e && e.hp > 0 && e.type !== 'turret' && e.type !== 'boid' && e.type !== 'mammoth_mount')
+                .sort(() => Math.random() - 0.5)[0];
+
+            const x = target ? clamp(target.x + randRange(-115, 115), 60, canvas.width - 60) : randRange(70, canvas.width - 70);
+            const y = target ? clamp(target.y + randRange(-115, 115), 60, canvas.height - 60) : randRange(70, canvas.height - 70);
+
+            farrelMeteorWarnings.push({
+                x,
+                y,
+                radius: randRange(46, 72),
+                life: 70,
+                maxLife: 70,
+                damage: randRange(30, 52)
+            });
+        }
+
+        farrelMeteorWarnings.forEach(w => w.life--);
+
+        const impacts = farrelMeteorWarnings.filter(w => w.life <= 0);
+        farrelMeteorWarnings = farrelMeteorWarnings.filter(w => w.life > 0);
+
+        impacts.forEach(w => {
+            triggerExplosion(w.x, w.y, w.radius * 2.05, w.damage, null);
+            spawnDamageText(w.x, w.y - 24, 'METEOR', '#ff7675', true);
+            farrelEventLog.push({
+                frame: frameCount,
+                text: `Meteor struck the arena at (${Math.round(w.x)}, ${Math.round(w.y)}).`
+            });
+        });
+    }
+
+    // FEATURE 5: Coach Recap — timeline + tactical advice
+    function buildCoachTipsHTML() {
+        if (!coachRecapEnabled) return '';
+
+        const stats = Object.values(battleStats || {});
+        const realStats = stats.filter(s => s && s.type && s.type !== 'turret' && s.type !== 'boid');
+
+        const topDamage = realStats.slice().sort((a, b) => (b.damageDealt || 0) - (a.damageDealt || 0))[0];
+        const punchingBag = realStats.slice().sort((a, b) => (b.damageTaken || 0) - (a.damageTaken || 0))[0];
+        const bestAccuracy = realStats
+            .filter(s => (s.shotsFired || 0) >= 3)
+            .map(s => ({ ...s, acc: (s.shotsHit || 0) / Math.max(1, s.shotsFired || 1) }))
+            .sort((a, b) => b.acc - a.acc)[0];
+
+        const tips = [];
+
+        if (topDamage && (topDamage.damageDealt || 0) > 0) {
+            tips.push(`${safeEsc(topDamage.name)} carried damage output. Build around that fighter or draft counters against ${niceTypeName(topDamage.type)}.`);
+        }
+
+        if (punchingBag && (punchingBag.damageTaken || 0) > 30) {
+            tips.push(`${safeEsc(punchingBag.name)} absorbed the most pressure. Give that slot a tank, healer, blocker, or more backline spacing.`);
+        }
+
+        if (bestAccuracy) {
+            tips.push(`${safeEsc(bestAccuracy.name)} had the best aim at ${Math.round(bestAccuracy.acc * 100)}%. Open maps reward that kind of ranged consistency.`);
+        }
+
+        const team1Power = getTeamPower(1);
+        const team2Power = getTeamPower(2);
+        if (team1Power && team2Power) {
+            const gap = Math.abs(team1Power - team2Power) / Math.max(1, Math.min(team1Power, team2Power));
+            if (gap > 0.25) {
+                tips.push(`Estimated team power was uneven by about ${Math.round(gap * 100)}%. Use Smart Draft or Auto Balance for closer matches.`);
+            }
+        }
+
+        if (farrelEventLog.some(e => /Meteor/.test(e.text))) {
+            tips.push('Meteor Storm punished clumps. Spread out ranged units and use fast fighters to bait impacts away.');
+        }
+
+        if (!tips.length) {
+            tips.push('Both sides were close. Try switching arena theme or enabling Meteor Storm to create a different tactical problem.');
+        }
+
+        const events = farrelEventLog.slice(-12).map(event => {
+            return `<li><b>${formatTimeFromFrames(event.frame - (battleStartFrame || 0))}</b> — ${safeEsc(event.text)}</li>`;
+        }).join('');
+
+        return `
+            <div class="coach-recap-panel">
+                <h3>Coach Recap</h3>
+                <div class="coach-recap-grid">
+                    <div class="coach-recap-card">
+                        <b>Battle Timeline</b>
+                        <ol class="coach-event-list">
+                            ${events || '<li>No major timeline events recorded.</li>'}
+                        </ol>
+                    </div>
+                    <div class="coach-recap-card">
+                        <b>Tactical Tips</b>
+                        <ul class="coach-tip-list">
+                            ${tips.slice(0, 5).map(tip => `<li>${tip}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    if (typeof buildBattleRecapHTML === 'function' && !buildBattleRecapHTML.__farrelCoachWrapped) {
+        const previousBuildBattleRecapHTML = buildBattleRecapHTML;
+        buildBattleRecapHTML = function farrelCoachBuildBattleRecapHTML() {
+            const html = previousBuildBattleRecapHTML.apply(this, arguments);
+            const coach = buildCoachTipsHTML();
+            const lastClose = html.lastIndexOf('</div>');
+            if (lastClose === -1 || !coach) return html + coach;
+            return html.slice(0, lastClose) + coach + html.slice(lastClose);
+        };
+        buildBattleRecapHTML.__farrelCoachWrapped = true;
+        window.buildBattleRecapHTML = buildBattleRecapHTML;
+    }
+
+    if (typeof logKill === 'function' && !logKill.__farrelTimelineWrapped) {
+        const previousLogKill = logKill;
+        logKill = function farrelTimelineLogKill(killerName, victimName, killerTeam, verbPhrase, victimTeam) {
+            if (!isSetupPhase) {
+                farrelEventLog.push({
+                    frame: frameCount,
+                    text: `${victimName} ${verbPhrase} ${killerName}`
+                });
+                if (farrelEventLog.length > 80) farrelEventLog = farrelEventLog.slice(-80);
+            }
+            return previousLogKill.apply(this, arguments);
+        };
+        logKill.__farrelTimelineWrapped = true;
+        window.logKill = logKill;
+    }
+
+    if (typeof beginBattle === 'function' && !beginBattle.__farrelExperienceWrapped) {
+        const previousBeginBattle = beginBattle;
+        beginBattle = function farrelExperienceBeginBattle() {
+            farrelEventLog = [];
+            farrelMeteorWarnings = [];
+            farrelMeteorClock = 0;
+
+            const result = previousBeginBattle.apply(this, arguments);
+
+            if (!isSetupPhase && !gameOverTriggered) {
+                applyAutoBalance();
+
+                if (meteorStormEnabled) {
+                    farrelEventLog.push({ frame: frameCount, text: 'Meteor Storm is active.' });
+                }
+            }
+
+            return result;
+        };
+        beginBattle.__farrelExperienceWrapped = true;
+        window.beginBattle = beginBattle;
+    }
+
+    function withWorldTransform(drawFn) {
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(camera.zoom, camera.zoom);
+        ctx.translate(-camera.x, -camera.y);
+        drawFn();
+        ctx.restore();
+    }
+
+    function drawMeteorWarnings() {
+        if (!farrelMeteorWarnings.length) return;
+
+        farrelMeteorWarnings.forEach(w => {
+            const progress = 1 - (w.life / Math.max(1, w.maxLife));
+            const pulse = Math.sin(frameCount * 0.45) * 4;
+            ctx.save();
+            ctx.globalAlpha = 0.45 + progress * 0.45;
+            ctx.strokeStyle = '#ff3b30';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(w.x, w.y, w.radius + pulse, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.globalAlpha = 0.12 + progress * 0.18;
+            ctx.fillStyle = '#ff7675';
+            ctx.beginPath();
+            ctx.arc(w.x, w.y, w.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.globalAlpha = 0.9;
+            ctx.fillStyle = '#ffdd59';
+            ctx.font = 'bold 12px Segoe UI, Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('!', w.x, w.y + 4);
+            ctx.restore();
+        });
+    }
+
+    function drawMagnetOverlays() {
+        entities.forEach(e => {
+            if (!e || e.type !== 'magnet' || e.hp <= 0) return;
+
+            ctx.save();
+            ctx.translate(e.x, e.y);
+            ctx.rotate(e.angle || 0);
+
+            const pulse = (e.magnetShieldPulse || 0) > 0 ? Math.sin(frameCount * 0.55) * 3 : 0;
+
+            ctx.strokeStyle = '#00cec9';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.arc(2, 0, 27 + pulse, -Math.PI * 0.72, Math.PI * 0.72);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ff4757';
+            ctx.fillRect(15, -22, 8, 8);
+            ctx.fillRect(15, 14, 8, 8);
+
+            ctx.strokeStyle = 'rgba(0, 206, 201, 0.35)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, 54 + Math.sin(frameCount * 0.12) * 4, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.restore();
+        });
+    }
+
+    if (typeof draw === 'function' && !draw.__farrelExperienceWrapped) {
+        const previousDraw = draw;
+        draw = function farrelExperienceDraw() {
+            const result = previousDraw.apply(this, arguments);
+
+            if (!(GAME_MODE === 'tournament' && !isTournamentMatch && tournamentData && tournamentData.active)) {
+                withWorldTransform(() => {
+                    drawMeteorWarnings();
+                    drawMagnetOverlays();
+                });
+            }
+
+            return result;
+        };
+        draw.__farrelExperienceWrapped = true;
+        window.draw = draw;
+    }
+
+    if (typeof update === 'function' && !update.__farrelExperienceWrapped) {
+        const previousUpdate = update;
+        update = function farrelExperienceUpdate() {
+            const result = previousUpdate.apply(this, arguments);
+            bendProjectilesAroundMagnets();
+            updateMeteorStorm();
+            return result;
+        };
+        update.__farrelExperienceWrapped = true;
+        window.update = update;
+    }
+
+    // Keep current selector UIs aware of the new fighter without disturbing existing picks.
+    setTimeout(() => {
+        installMagnetFighter();
+        if (typeof populateFighterSelect === 'function') {
+            populateFighterSelect('tourneyCustomFighterSelect');
+            populateFighterSelect('campaignShopSelect');
+        }
+        updateFeatureButtons();
+    }, 0);
+})();
+
+
+/* --- FARREL FUNPACK 3: ORB HUNTERS, CHRONOMANCER, WIND, VAMPIRE, BOUNTY, MIRROR + LANES --- */
+(function farrelFunpackThree() {
+    if (window.__farrelFunpackThreeApplied) return;
+    window.__farrelFunpackThreeApplied = true;
+
+    let arenaWindEnabled = false;
+    let vampireRulesEnabled = false;
+    let bountyModeEnabled = false;
+    let currentBountyId = null;
+    let windAngle = Math.random() * Math.PI * 2;
+    let windPulse = 0;
+
+    function el(id) { return document.getElementById(id); }
+
+    function setToggleButton(buttonId, enabled, onText, offText) {
+        const btn = el(buttonId);
+        if (!btn) return;
+        btn.innerText = enabled ? onText : offText;
+        btn.classList.toggle('active', !!enabled);
+    }
+
+    function isRealFighter(e) {
+        return !!(e && e.hp > 0 && e.type !== 'turret' && e.type !== 'boid' && e.type !== 'mammoth_mount' && !e.parentId);
+    }
+
+    function livingFighters() {
+        return Array.isArray(entities) ? entities.filter(isRealFighter) : [];
+    }
+
+    function nearestEnemy(e) {
+        let best = null;
+        let bestD = Infinity;
+        livingFighters().forEach(other => {
+            if (!other || other.id === e.id || other.team === e.team) return;
+            const d = Math.hypot(other.x - e.x, other.y - e.y);
+            if (d < bestD) { bestD = d; best = other; }
+        });
+        return best;
+    }
+
+    function installChronomancer() {
+        if (typeof FIGHTER_DATA !== 'undefined') {
+            FIGHTER_DATA.chronomancer = FIGHTER_DATA.chronomancer || {
+                hp: 105,
+                dmg: 'Control',
+                ability: 'Time Snare',
+                desc: 'Slows enemies, briefly freezes a chosen target, then kites while the fight happens around it.'
+            };
+        }
+        if (typeof FIGHTER_VISUALS !== 'undefined') {
+            FIGHTER_VISUALS.chronomancer = FIGHTER_VISUALS.chronomancer || { tag: 'CH', color: '#2d1b69', accent: '#a29bfe' };
+        }
+        if (Array.isArray(FIGHTER_OPTIONS) && !FIGHTER_OPTIONS.includes('chronomancer')) {
+            FIGHTER_OPTIONS.push('chronomancer');
+            FIGHTER_OPTIONS.sort();
+        }
+    }
+
+    installChronomancer();
+
+    // Keep Auto Balance actually off on boot, including the button state from older HTML.
+    setTimeout(() => {
+        setToggleButton('autoBalanceBtn', false, 'Auto Balance: ON', 'Auto Balance: OFF');
+        setToggleButton('arenaWindBtn', arenaWindEnabled, 'Wind: ON', 'Wind: OFF');
+        setToggleButton('vampireRulesBtn', vampireRulesEnabled, 'Vampire Rules: ON', 'Vampire Rules: OFF');
+        setToggleButton('bountyModeBtn', bountyModeEnabled, 'Bounty Mark: ON', 'Bounty Mark: OFF');
+        if (typeof populateFighterSelect === 'function') {
+            populateFighterSelect('tourneyCustomFighterSelect');
+            populateFighterSelect('campaignShopSelect');
+        }
+    }, 0);
+
+    if (typeof applyClassProps === 'function' && !applyClassProps.__farrelFunpackThreeWrapped) {
+        const previousApplyClassProps = applyClassProps;
+        applyClassProps = function farrelFunpackThreeApplyClassProps(fighter, type) {
+            previousApplyClassProps.apply(this, arguments);
+
+            if (type === 'chronomancer') {
+                fighter.mass = Math.max(fighter.mass || 1, 1.18);
+                fighter.reach = Math.max(fighter.reach || 0, 360);
+                fighter.chronoCooldown = fighter.chronoCooldown || 45;
+                fighter.chronoOrbit = Math.random() * Math.PI * 2;
+                fighter.bravery = Math.min(fighter.bravery || 0.5, 0.48);
+            }
+
+            if (type === 'magnet') {
+                // Stable Magnet revision: less twitchy, less explosive, still useful.
+                fighter.mass = Math.max(fighter.mass || 1, 2.1);
+                fighter.reach = Math.max(fighter.reach || 0, 380);
+                fighter.magnetPullCooldown = Math.max(fighter.magnetPullCooldown || 0, 35);
+                fighter.magnetRepelCooldown = Math.max(fighter.magnetRepelCooldown || 0, 60);
+                fighter.magnetShieldPulse = fighter.magnetShieldPulse || 0;
+                fighter.pushResistance = Math.max(fighter.pushResistance || 0, 0.35);
+            }
+        };
+        applyClassProps.__farrelFunpackThreeWrapped = true;
+        window.applyClassProps = applyClassProps;
+    }
+
+    function handleChronomancerAI(e) {
+        if (!e || e.type !== 'chronomancer') return false;
+        if (isSetupPhase || e.hp <= 0 || e.frozen > 0 || e.isDancing) return true;
+
+        if (e.chronoCooldown > 0) e.chronoCooldown--;
+        e.chronoOrbit = (e.chronoOrbit || 0) + 0.035;
+
+        const target = (e.target && e.target.hp > 0 && e.target.team !== e.team) ? e.target : nearestEnemy(e);
+        if (!target) return true;
+
+        e.target = target;
+        const dx = target.x - e.x;
+        const dy = target.y - e.y;
+        const d = Math.max(1, Math.hypot(dx, dy));
+        const angle = Math.atan2(dy, dx);
+        e.angle = angle;
+
+        const preferred = 260;
+        const rangeError = d - preferred;
+        e.vx += Math.cos(angle) * clamp(rangeError / 500, -0.28, 0.30);
+        e.vy += Math.sin(angle) * clamp(rangeError / 500, -0.28, 0.30);
+        e.vx += Math.cos(angle + Math.PI / 2) * 0.10 * Math.sin(e.chronoOrbit);
+        e.vy += Math.sin(angle + Math.PI / 2) * 0.10 * Math.sin(e.chronoOrbit);
+
+        if (e.chronoCooldown <= 0 && d < 390) {
+            const freezeFrames = d < 190 ? 30 : 16;
+            target.farrelChronoSlowUntil = Math.max(target.farrelChronoSlowUntil || 0, frameCount + 120);
+            target.farrelChronoFreezeUntil = Math.max(target.farrelChronoFreezeUntil || 0, frameCount + freezeFrames);
+            if (typeof damageEntity === 'function') damageEntity(target, 7, e.x, e.y, e);
+            if (typeof spawnDamageText === 'function') spawnDamageText(target.x, target.y - 34, 'TIME SNARE', '#a29bfe', true);
+            if (typeof spawnParticles === 'function') spawnParticles(target.x, target.y, '#a29bfe', 10);
+            if (typeof playSound === 'function') playSound('zap');
+            e.chronoCooldown = 118;
+        }
+
+        return true;
+    }
+
+    function handleStableMagnetAI(e) {
+        if (!e || e.type !== 'magnet') return false;
+        if (isSetupPhase || e.hp <= 0 || e.frozen > 0 || e.isDancing) return true;
+
+        e.magnetPullCooldown = Math.max(0, (e.magnetPullCooldown || 0) - 1);
+        e.magnetRepelCooldown = Math.max(0, (e.magnetRepelCooldown || 0) - 1);
+        e.magnetShieldPulse = Math.max(0, (e.magnetShieldPulse || 0) - 1);
+
+        const target = (e.target && e.target.hp > 0 && e.target.team !== e.team) ? e.target : nearestEnemy(e);
+        if (!target) return true;
+
+        e.target = target;
+        const dx = target.x - e.x;
+        const dy = target.y - e.y;
+        const d = Math.max(1, Math.hypot(dx, dy));
+        const angle = Math.atan2(dy, dx);
+        e.angle = angle;
+
+        const preferred = 180;
+        const rangeError = d - preferred;
+        e.vx += Math.cos(angle) * clamp(rangeError / 520, -0.22, 0.26);
+        e.vy += Math.sin(angle) * clamp(rangeError / 520, -0.22, 0.26);
+        e.vx += Math.cos(angle + Math.PI / 2) * 0.08;
+        e.vy += Math.sin(angle + Math.PI / 2) * 0.08;
+
+        if (e.magnetPullCooldown <= 0 && d > 115 && d < 390) {
+            target.vx += (e.x - target.x) / d * 2.7;
+            target.vy += (e.y - target.y) / d * 2.7;
+            if (typeof damageEntity === 'function') damageEntity(target, 4, e.x, e.y, e);
+            if (typeof spawnDamageText === 'function') spawnDamageText(target.x, target.y - 30, 'PULL', '#00cec9', true);
+            if (typeof spawnParticles === 'function') spawnParticles(target.x, target.y, '#00cec9', 5);
+            e.magnetPullCooldown = 105;
+            e.magnetShieldPulse = 12;
+        }
+
+        if (e.magnetRepelCooldown <= 0 && d < 92) {
+            target.vx += dx / d * 5.5;
+            target.vy += dy / d * 5.5;
+            if (typeof damageEntity === 'function') damageEntity(target, 11, e.x, e.y, e);
+            if (typeof spawnDamageText === 'function') spawnDamageText(e.x, e.y - 34, 'REPEL', '#74b9ff', true);
+            if (typeof spawnParticles === 'function') spawnParticles(e.x, e.y, '#74b9ff', 12);
+            e.magnetRepelCooldown = 130;
+            e.magnetShieldPulse = 20;
+        }
+
+        const speed = Math.hypot(e.vx || 0, e.vy || 0);
+        if (speed > 7.2) {
+            e.vx *= 7.2 / speed;
+            e.vy *= 7.2 / speed;
+        }
+
+        return true;
+    }
+
+    if (typeof applyAI === 'function' && !applyAI.__farrelFunpackThreeWrapped) {
+        const previousApplyAI = applyAI;
+        applyAI = function farrelFunpackThreeApplyAI(e) {
+            if (e && e.type === 'chronomancer') {
+                if (handleChronomancerAI(e)) return;
+            }
+            if (e && e.type === 'magnet') {
+                if (handleStableMagnetAI(e)) return;
+            }
+            return previousApplyAI.apply(this, arguments);
+        };
+        applyAI.__farrelFunpackThreeWrapped = true;
+        window.applyAI = applyAI;
+    }
+
+    window.toggleArenaWind = function toggleArenaWind() {
+        arenaWindEnabled = !arenaWindEnabled;
+        setToggleButton('arenaWindBtn', arenaWindEnabled, 'Wind: ON', 'Wind: OFF');
+        if (typeof showCustomMessage === 'function') showCustomMessage('Arena Wind', arenaWindEnabled ? 'Wind will push fighters and curve projectiles.' : 'Wind disabled.');
+    };
+
+    window.toggleVampireRules = function toggleVampireRules() {
+        vampireRulesEnabled = !vampireRulesEnabled;
+        setToggleButton('vampireRulesBtn', vampireRulesEnabled, 'Vampire Rules: ON', 'Vampire Rules: OFF');
+        if (typeof showCustomMessage === 'function') showCustomMessage('Vampire Rules', vampireRulesEnabled ? 'Damage dealt now heals the attacker a little.' : 'Vampire rules disabled.');
+    };
+
+    window.toggleBountyMode = function toggleBountyMode() {
+        bountyModeEnabled = !bountyModeEnabled;
+        currentBountyId = null;
+        setToggleButton('bountyModeBtn', bountyModeEnabled, 'Bounty Mark: ON', 'Bounty Mark: OFF');
+        if (typeof showCustomMessage === 'function') showCustomMessage('Bounty Mark', bountyModeEnabled ? 'The top threat gets marked and takes slightly more damage.' : 'Bounty mark disabled.');
+    };
+
+    function updateBountyMark() {
+        livingFighters().forEach(e => { e.farrelBountyMarked = false; });
+        if (!bountyModeEnabled || isSetupPhase || gameOverTriggered) { currentBountyId = null; return; }
+
+        let best = null;
+        let bestScore = 0;
+        livingFighters().forEach(e => {
+            const stat = battleStats && battleStats[e.id] ? battleStats[e.id] : null;
+            const score = (stat?.kills || 0) * 130 + (stat?.damageDealt || 0) + Math.max(0, (e.maxHp || 0) - (e.hp || 0)) * 0.15;
+            if (score > bestScore) { bestScore = score; best = e; }
+        });
+
+        if (best && bestScore > 25) {
+            best.farrelBountyMarked = true;
+            currentBountyId = best.id;
+        } else {
+            currentBountyId = null;
+        }
+    }
+
+    function applyWindForces() {
+        if (!arenaWindEnabled || isSetupPhase || gameOverTriggered || !gameActive) return;
+        windPulse += 0.012;
+        windAngle += 0.0025 * Math.sin(windPulse * 0.7);
+        const wx = Math.cos(windAngle);
+        const wy = Math.sin(windAngle);
+        const force = 0.018 + Math.sin(windPulse) * 0.006;
+
+        livingFighters().forEach(e => {
+            const mass = Math.max(1, e.mass || 1);
+            e.vx += wx * force / Math.sqrt(mass);
+            e.vy += wy * force / Math.sqrt(mass);
+        });
+
+        if (Array.isArray(projectiles)) {
+            projectiles.forEach(p => {
+                if (!p || p.isMine) return;
+                p.vx += wx * force * 0.55;
+                p.vy += wy * force * 0.55;
+            });
+        }
+    }
+
+    function applyChronoStatuses() {
+        livingFighters().forEach(e => {
+            const frozen = (e.farrelChronoFreezeUntil || 0) > frameCount;
+            const slowed = (e.farrelChronoSlowUntil || 0) > frameCount;
+            if (frozen) {
+                e.vx *= 0.42;
+                e.vy *= 0.42;
+                if (frameCount % 10 === 0 && typeof spawnParticles === 'function') spawnParticles(e.x, e.y, '#a29bfe', 1);
+            } else if (slowed) {
+                e.vx *= 0.84;
+                e.vy *= 0.84;
+            }
+        });
+    }
+
+    if (typeof damageEntity === 'function' && !damageEntity.__farrelFunpackThreeWrapped) {
+        const previousDamageEntity = damageEntity;
+        damageEntity = function farrelFunpackThreeDamageEntity(victim, amount, impactX, impactY, damageSource) {
+            const wasBounty = !!(victim && victim.farrelBountyMarked);
+            let finalAmount = amount;
+            if (bountyModeEnabled && wasBounty && Number.isFinite(Number(finalAmount))) {
+                finalAmount = Number(finalAmount) * 1.08;
+            }
+
+            const beforeHp = victim ? victim.hp : 0;
+            const result = previousDamageEntity.call(this, victim, finalAmount, impactX, impactY, damageSource);
+            const afterHp = victim ? victim.hp : beforeHp;
+            const dealt = Math.max(0, (beforeHp || 0) - (afterHp || 0));
+
+            if (vampireRulesEnabled && dealt > 0 && damageSource && damageSource.hp > 0 && damageSource.id !== victim?.id) {
+                const heal = Math.max(1, dealt * 0.10);
+                damageSource.hp = Math.min(damageSource.maxHp || damageSource.hp, damageSource.hp + heal);
+                if (frameCount % 9 === 0 && typeof spawnParticles === 'function') spawnParticles(damageSource.x, damageSource.y, '#ff4757', 2);
+            }
+
+            if (bountyModeEnabled && wasBounty && victim && victim.hp <= 0 && damageSource && damageSource.hp > 0) {
+                const reward = Math.max(12, (damageSource.maxHp || 100) * 0.18);
+                damageSource.hp = Math.min(damageSource.maxHp || damageSource.hp, damageSource.hp + reward);
+                if (typeof spawnDamageText === 'function') spawnDamageText(damageSource.x, damageSource.y - 38, 'BOUNTY CLAIMED', '#f1c40f', true);
+                if (typeof spawnParticles === 'function') spawnParticles(damageSource.x, damageSource.y, '#f1c40f', 16);
+                currentBountyId = null;
+            }
+
+            return result;
+        };
+        damageEntity.__farrelFunpackThreeWrapped = true;
+        window.damageEntity = damageEntity;
+    }
+
+    window.mirrorLeftSquadToRight = function mirrorLeftSquadToRight() {
+        const mode = (el('modeSelect') && el('modeSelect').value) || GAME_MODE;
+        if (['tournament', 'campaign', 'chess', 'ffa'].includes(mode)) {
+            if (typeof showCustomMessage === 'function') showCustomMessage('Mirror Squad', 'Mirror L→R works in Team or Clan setup.');
+            return;
+        }
+
+        const leftInputs = Array.from(document.querySelectorAll('.p1-input'));
+        const rightCount = el('p2Count');
+        if (rightCount) rightCount.value = String(Math.max(1, leftInputs.length));
+        if (typeof updateSquadUI === 'function') updateSquadUI();
+
+        setTimeout(() => {
+            const freshLeft = Array.from(document.querySelectorAll('.p1-input'));
+            const rightInputs = Array.from(document.querySelectorAll('.p2-input'));
+            rightInputs.forEach((input, i) => {
+                const val = freshLeft[i]?.dataset?.value || freshLeft[i]?.value || 'unarmed';
+                input.value = val;
+                input.dataset.value = val;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            if (typeof initializeSquads === 'function') initializeSquads();
+            if (typeof showCustomMessage === 'function') showCustomMessage('Mirror Match', 'Right squad now mirrors the left squad.');
+        }, 0);
+    };
+
+    window.applyCrossfireMapPreset = function applyCrossfireMapPreset() {
+        if (!isSetupPhase) {
+            if (typeof showCustomMessage === 'function') showCustomMessage('Lanes Map', 'Reset first, then apply the map preset.');
+            return;
+        }
+        if (!Array.isArray(obstacles)) return;
+
+        if (typeof clearObstacles === 'function') clearObstacles();
+        const w = canvas.width;
+        const h = canvas.height;
+        const rock = (x, y, r = 24) => obstacles.push({ x, y, type: 'rock', radius: r, mass: 1000, hp: 160, maxHp: 160 });
+        const barrel = (x, y) => obstacles.push({ x, y, type: 'barrel', radius: 20, mass: 2.0, hp: 50, maxHp: 50, friction: 0.92, vx: 0, vy: 0 });
+
+        const cx = w / 2;
+        const cy = h / 2;
+        for (let i = -2; i <= 2; i++) {
+            if (i !== 0) {
+                rock(cx + i * 58, cy - 90, 22);
+                rock(cx + i * 58, cy + 90, 22);
+            }
+        }
+        for (let i = -1; i <= 1; i++) {
+            rock(cx - 145, cy + i * 62, 21);
+            rock(cx + 145, cy + i * 62, 21);
+        }
+        barrel(cx, cy - 112);
+        barrel(cx, cy + 112);
+        barrel(cx - 205, cy);
+        barrel(cx + 205, cy);
+
+        if (typeof showCustomMessage === 'function') showCustomMessage('Crossfire Lanes', 'Lane map loaded: cover, flank routes, and explosive center pressure.');
+        if (typeof resetPositions === 'function') resetPositions();
+    };
+
+    function screenPoint(x, y) {
+        const z = camera && Number.isFinite(camera.zoom) ? camera.zoom : 1;
+        return { x: (x - (camera?.x || 0)) * z + canvas.width / 2, y: (y - (camera?.y || 0)) * z + canvas.height / 2, z };
+    }
+
+    function withWorldTransform(drawFn) {
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(camera.zoom, camera.zoom);
+        ctx.translate(-camera.x, -camera.y);
+        drawFn();
+        ctx.restore();
+    }
+
+    function drawFunpackThreeWorld() {
+        livingFighters().forEach(e => {
+            if (e.type === 'chronomancer') {
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                ctx.rotate(-(frameCount || 0) * 0.035);
+                ctx.strokeStyle = '#a29bfe';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, (e.radius || 20) + 12, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, -((e.radius || 20) + 8));
+                ctx.moveTo(0, 0);
+                ctx.lineTo((e.radius || 20) * 0.55, 0);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            if ((e.farrelChronoSlowUntil || 0) > frameCount) {
+                ctx.save();
+                ctx.globalAlpha = 0.34;
+                ctx.strokeStyle = '#a29bfe';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, (e.radius || 20) + 18 + Math.sin(frameCount * 0.12) * 3, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            if (e.farrelBountyMarked) {
+                ctx.save();
+                ctx.globalAlpha = 0.88;
+                ctx.strokeStyle = '#f1c40f';
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, (e.radius || 20) + 22 + Math.sin(frameCount * 0.18) * 4, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.fillStyle = '#f1c40f';
+                ctx.font = 'bold 18px Segoe UI, Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('★', e.x, e.y - (e.radius || 20) - 28);
+                ctx.restore();
+            }
+        });
+    }
+
+    function drawWindHud() {
+        if (!arenaWindEnabled || isSetupPhase || gameOverTriggered) return;
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 0.82;
+        const x = canvas.width - 86;
+        const y = 54;
+        ctx.fillStyle = 'rgba(0,0,0,.45)';
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(x - 38, y - 28, 76, 56, 12) : ctx.rect(x - 38, y - 28, 76, 56);
+        ctx.fill();
+        ctx.translate(x, y);
+        ctx.rotate(windAngle);
+        ctx.strokeStyle = '#81ecec';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(-24, 0);
+        ctx.lineTo(24, 0);
+        ctx.lineTo(12, -10);
+        ctx.moveTo(24, 0);
+        ctx.lineTo(12, 10);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    if (typeof update === 'function' && !update.__farrelFunpackThreeWrapped) {
+        const previousUpdate = update;
+        update = function farrelFunpackThreeUpdate() {
+            const result = previousUpdate.apply(this, arguments);
+            applyChronoStatuses();
+            applyWindForces();
+            updateBountyMark();
+            return result;
+        };
+        update.__farrelFunpackThreeWrapped = true;
+        window.update = update;
+    }
+
+    if (typeof draw === 'function' && !draw.__farrelFunpackThreeWrapped) {
+        const previousDraw = draw;
+        draw = function farrelFunpackThreeDraw() {
+            const result = previousDraw.apply(this, arguments);
+            withWorldTransform(drawFunpackThreeWorld);
+            drawWindHud();
+            return result;
+        };
+        draw.__farrelFunpackThreeWrapped = true;
+        window.draw = draw;
+    }
+})();
+
+
+/* --- FARREL POLISH + ARENA/FUNPACK 4 PATCH --- */
+(function farrelPolishArenaFunpackFour() {
+    const $ = id => document.getElementById(id);
+    const byType = t => Array.isArray(entities) ? entities.filter(e => e && e.hp > 0 && e.type === t) : [];
+
+    let commanderAuraEnabled = false;
+    let momentumModeEnabled = false;
+    let revengeModeEnabled = false;
+    let healthBarsEnabled = false;
+    let minimapEnabled = false;
+    const revengeMarks = new Map();
+
+    function setBtn(id, enabled, onText, offText) {
+        const btn = $(id);
+        if (!btn) return;
+        btn.innerText = enabled ? onText : offText;
+        btn.classList.toggle('active', !!enabled);
+    }
+
+    function button(id, text, fnName) {
+        const b = document.createElement('button');
+        b.id = id;
+        b.className = 'btn-toggle farrel-fun4-btn';
+        b.type = 'button';
+        b.innerText = text;
+        b.setAttribute('onclick', fnName + '()');
+        b.style.width = 'auto';
+        return b;
+    }
+
+    function installUiButtons() {
+        const row = document.querySelector('#row-4 .top-settings-row');
+        if (row && !$('commanderAuraBtn')) {
+            row.appendChild(button('commanderAuraBtn', 'Commander Aura: OFF', 'toggleCommanderAura'));
+            row.appendChild(button('momentumModeBtn', 'Momentum: OFF', 'toggleMomentumMode'));
+            row.appendChild(button('revengeModeBtn', 'Revenge: OFF', 'toggleRevengeMode'));
+            row.appendChild(button('healthBarsBtn', 'Health Bars: OFF', 'toggleHealthBars'));
+            row.appendChild(button('minimapBtn', 'Mini Map: OFF', 'toggleMiniMap'));
+        }
+
+        const presetPanel = document.querySelector('#row-3 .arena-preset-panel');
+        if (presetPanel && !presetPanel.querySelector('[data-farrel-preset="maze"]')) {
+            const presets = [
+                ['maze', 'Maze Arena'],
+                ['fortress_plus', 'Fortress'],
+                ['ring_of_fire', 'Ring Fire'],
+                ['pinball', 'Pinball'],
+                ['islands', 'Islands']
+            ];
+            presets.forEach(([preset, label]) => {
+                const b = document.createElement('button');
+                b.className = 'btn-toggle';
+                b.dataset.farrelPreset = preset;
+                b.type = 'button';
+                b.innerText = label;
+                b.setAttribute('onclick', `applyArenaPreset('${preset}')`);
+                presetPanel.appendChild(b);
+            });
+        }
+
+        const arenaSelect = $('arenaSelect');
+        if (arenaSelect && !arenaSelect.querySelector('option[value="volcano"]')) {
+            const items = [
+                ['neon', 'Arena: Neon Grid (Clear)'],
+                ['volcano', 'Arena: Volcano (Hot Edges)'],
+                ['space', 'Arena: Space (Low Gravity)'],
+                ['forest', 'Arena: Forest (Vines Slow)'],
+                ['aquarium', 'Arena: Aquarium (Water Drag)'],
+                ['midnight', 'Arena: Midnight (High Contrast)']
+            ];
+            items.forEach(([value, label]) => {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = label;
+                arenaSelect.appendChild(opt);
+            });
+        }
+
+        // Label the custom tab sections so the messy old controls are easier to scan.
+        const custom = document.querySelector('#row-3 .customize-group');
+        if (custom && !custom.querySelector('.farrel-section-title')) {
+            const title = document.createElement('div');
+            title.className = 'farrel-section-title';
+            title.textContent = 'Map & Theme';
+            custom.prepend(title);
+        }
+        const placement = document.querySelector('#row-3 > div:not(.customize-group) > .settings-group:first-child');
+        if (placement && !placement.querySelector('.farrel-section-title')) {
+            const title = document.createElement('div');
+            title.className = 'farrel-section-title';
+            title.textContent = 'Arena Objects & Presets';
+            placement.prepend(title);
+        }
+    }
+
+    window.toggleCommanderAura = function toggleCommanderAura() {
+        commanderAuraEnabled = !commanderAuraEnabled;
+        setBtn('commanderAuraBtn', commanderAuraEnabled, 'Commander Aura: ON', 'Commander Aura: OFF');
+        if (typeof showCustomMessage === 'function') showCustomMessage('Commander Aura', commanderAuraEnabled ? 'The strongest living unit on each team buffs nearby allies.' : 'Commander Aura disabled.');
+    };
+
+    window.toggleMomentumMode = function toggleMomentumMode() {
+        momentumModeEnabled = !momentumModeEnabled;
+        setBtn('momentumModeBtn', momentumModeEnabled, 'Momentum: ON', 'Momentum: OFF');
+        if (!momentumModeEnabled) livingMain().forEach(e => e.farrelMomentum = 0);
+        if (typeof showCustomMessage === 'function') showCustomMessage('Momentum', momentumModeEnabled ? 'Fighters build small streak bonuses when they keep landing hits.' : 'Momentum disabled.');
+    };
+
+    window.toggleRevengeMode = function toggleRevengeMode() {
+        revengeModeEnabled = !revengeModeEnabled;
+        revengeMarks.clear();
+        setBtn('revengeModeBtn', revengeModeEnabled, 'Revenge: ON', 'Revenge: OFF');
+        if (typeof showCustomMessage === 'function') showCustomMessage('Revenge Marks', revengeModeEnabled ? 'Teams mark the killer when an ally falls.' : 'Revenge marks disabled.');
+    };
+
+    window.toggleHealthBars = function toggleHealthBars() {
+        healthBarsEnabled = !healthBarsEnabled;
+        setBtn('healthBarsBtn', healthBarsEnabled, 'Health Bars: ON', 'Health Bars: OFF');
+    };
+
+    window.toggleMiniMap = function toggleMiniMap() {
+        minimapEnabled = !minimapEnabled;
+        setBtn('minimapBtn', minimapEnabled, 'Mini Map: ON', 'Mini Map: OFF');
+    };
+
+    function livingMain() {
+        if (!Array.isArray(entities)) return [];
+        return entities.filter(e => e && e.hp > 0 && e.type !== 'turret' && e.type !== 'boid' && e.type !== 'mammoth_mount' && !e.parentId);
+    }
+
+    function dist(a, b) {
+        return Math.hypot((a.x || 0) - (b.x || 0), (a.y || 0) - (b.y || 0));
+    }
+
+    function nearestEnemyLocal(e) {
+        let best = null;
+        let bestD = Infinity;
+        livingMain().forEach(o => {
+            if (!o || o.id === e.id || o.team === e.team) return;
+            const d = dist(e, o);
+            if (d < bestD) { best = o; bestD = d; }
+        });
+        return best;
+    }
+
+    // New fighter: Alchemist
+    function installAlchemist() {
+        if (typeof FIGHTER_DATA !== 'undefined' && !FIGHTER_DATA.alchemist) {
+            FIGHTER_DATA.alchemist = {
+                hp: 112,
+                dmg: 'Control',
+                ability: 'Potion Kit',
+                desc: 'Throws acid and glue potions, then tosses emergency heals to damaged allies.'
+            };
+        }
+        if (typeof FIGHTER_VISUALS !== 'undefined' && !FIGHTER_VISUALS.alchemist) {
+            FIGHTER_VISUALS.alchemist = { tag: 'AL', color: '#7bed9f', accent: '#2ed573' };
+        }
+        if (Array.isArray(FIGHTER_OPTIONS) && !FIGHTER_OPTIONS.includes('alchemist')) {
+            FIGHTER_OPTIONS.push('alchemist');
+            FIGHTER_OPTIONS.sort();
+        }
+    }
+    installAlchemist();
+
+    if (typeof applyClassProps === 'function' && !applyClassProps.__farrelFun4Wrapped) {
+        const prev = applyClassProps;
+        applyClassProps = function farrelFun4ApplyClassProps(fighter, type) {
+            prev.apply(this, arguments);
+            if (type === 'alchemist') {
+                fighter.mass = Math.max(fighter.mass || 1, 1.15);
+                fighter.reach = Math.max(fighter.reach || 0, 360);
+                fighter.alchemyCooldown = fighter.alchemyCooldown || 50;
+                fighter.alchemyHealCooldown = fighter.alchemyHealCooldown || 140;
+                fighter.bravery = Math.min(fighter.bravery || 0.55, 0.52);
+            }
+        };
+        applyClassProps.__farrelFun4Wrapped = true;
+        window.applyClassProps = applyClassProps;
+    }
+
+    function applyArenaThemeForces() {
+        if (isSetupPhase || gameOverTriggered || !Array.isArray(entities)) return;
+        const theme = typeof ARENA_THEME !== 'undefined' ? ARENA_THEME : 'white';
+        const live = livingMain();
+        if (!live.length) return;
+
+        live.forEach(e => {
+            if (theme === 'space') {
+                e.vy -= 0.018;
+                e.vx *= 0.9985;
+                e.vy *= 0.9985;
+            } else if (theme === 'forest') {
+                e.vx *= 0.985;
+                e.vy *= 0.985;
+                if (frameCount % 120 === 0 && Math.random() < 0.06) {
+                    e.farrelVinedUntil = frameCount + 45;
+                    if (typeof spawnDamageText === 'function') spawnDamageText(e.x, e.y - 26, 'VINES', '#2ecc71', true);
+                }
+            } else if (theme === 'aquarium') {
+                e.vx *= 0.992;
+                e.vy *= 0.992;
+                e.vx += Math.sin(frameCount * 0.015 + e.id) * 0.006;
+            } else if (theme === 'volcano') {
+                const edge = Math.min(e.x, e.y, canvas.width - e.x, canvas.height - e.y);
+                if (edge < 62 && frameCount % 24 === 0 && typeof damageEntity === 'function') {
+                    damageEntity(e, 3.2, e.x, e.y, null);
+                    if (typeof spawnParticles === 'function') spawnParticles(e.x, e.y, '#ff6b00', 2);
+                }
+            }
+
+            if ((e.farrelVinedUntil || 0) > frameCount) {
+                e.vx *= 0.70;
+                e.vy *= 0.70;
+            }
+        });
+    }
+
+    function handleAlchemistAI(e) {
+        if (!e || e.type !== 'alchemist') return false;
+        if (isSetupPhase || e.hp <= 0 || e.frozen > 0 || e.isDancing) return true;
+
+        e.alchemyCooldown = Math.max(0, (e.alchemyCooldown || 0) - 1);
+        e.alchemyHealCooldown = Math.max(0, (e.alchemyHealCooldown || 0) - 1);
+
+        const allies = livingMain().filter(a => a.team === e.team && a.id !== e.id && a.hp > 0 && a.hp < (a.maxHp || a.hp) * 0.62);
+        allies.sort((a, b) => (a.hp / Math.max(1, a.maxHp || 1)) - (b.hp / Math.max(1, b.maxHp || 1)));
+        const hurtAlly = allies[0];
+
+        if (hurtAlly && e.alchemyHealCooldown <= 0 && dist(e, hurtAlly) < 330) {
+            hurtAlly.hp = Math.min(hurtAlly.maxHp || hurtAlly.hp, hurtAlly.hp + Math.max(12, (hurtAlly.maxHp || 80) * 0.16));
+            if (typeof spawnDamageText === 'function') spawnDamageText(hurtAlly.x, hurtAlly.y - 34, 'POTION HEAL', '#2ed573', true);
+            if (typeof spawnParticles === 'function') spawnParticles(hurtAlly.x, hurtAlly.y, '#7bed9f', 10);
+            e.alchemyHealCooldown = 210;
+        }
+
+        const target = (e.target && e.target.hp > 0 && e.target.team !== e.team) ? e.target : nearestEnemyLocal(e);
+        if (!target) return true;
+        e.target = target;
+        const dx = target.x - e.x;
+        const dy = target.y - e.y;
+        const d = Math.max(1, Math.hypot(dx, dy));
+        const ang = Math.atan2(dy, dx);
+        e.angle = ang;
+
+        const desired = 245;
+        const range = d - desired;
+        e.vx += Math.cos(ang) * clamp(range / 560, -0.20, 0.23);
+        e.vy += Math.sin(ang) * clamp(range / 560, -0.20, 0.23);
+        e.vx += Math.cos(ang + Math.PI / 2) * 0.075;
+        e.vy += Math.sin(ang + Math.PI / 2) * 0.075;
+
+        if (e.alchemyCooldown <= 0 && d < 390) {
+            const potion = Math.random() < 0.54 ? 'acid' : 'glue';
+            if (potion === 'acid') {
+                target.farrelAcidUntil = frameCount + 180;
+                if (typeof damageEntity === 'function') damageEntity(target, 13, e.x, e.y, e);
+                if (typeof spawnDamageText === 'function') spawnDamageText(target.x, target.y - 30, 'ACID', '#a3e635', true);
+                if (typeof spawnParticles === 'function') spawnParticles(target.x, target.y, '#a3e635', 12);
+            } else {
+                target.farrelGlueUntil = frameCount + 150;
+                if (typeof damageEntity === 'function') damageEntity(target, 7, e.x, e.y, e);
+                if (typeof spawnDamageText === 'function') spawnDamageText(target.x, target.y - 30, 'GLUE', '#f1c40f', true);
+                if (typeof spawnParticles === 'function') spawnParticles(target.x, target.y, '#f1c40f', 10);
+            }
+            e.alchemyCooldown = 105;
+        }
+        return true;
+    }
+
+    function updateAlchemistStatuses() {
+        livingMain().forEach(e => {
+            if ((e.farrelGlueUntil || 0) > frameCount) {
+                e.vx *= 0.76;
+                e.vy *= 0.76;
+            }
+            if ((e.farrelAcidUntil || 0) > frameCount && frameCount % 30 === 0 && typeof damageEntity === 'function') {
+                damageEntity(e, 2.6, e.x, e.y, null);
+                if (typeof spawnParticles === 'function') spawnParticles(e.x, e.y, '#a3e635', 2);
+            }
+        });
+    }
+
+    function updateCommanderAura() {
+        livingMain().forEach(e => { e.farrelCommander = false; e.farrelCommanderGuard = false; });
+        if (!commanderAuraEnabled || isSetupPhase || gameOverTriggered) return;
+        const teams = [...new Set(livingMain().map(e => e.team))];
+        teams.forEach(team => {
+            const members = livingMain().filter(e => e.team === team);
+            if (!members.length) return;
+            const commander = members.slice().sort((a, b) => ((b.maxHp || b.hp || 0) + (b.radius || 0) * 3) - ((a.maxHp || a.hp || 0) + (a.radius || 0) * 3))[0];
+            commander.farrelCommander = true;
+            members.forEach(ally => {
+                if (ally.id !== commander.id && dist(ally, commander) < 190) {
+                    ally.farrelCommanderGuard = true;
+                    ally.vx *= 1.002;
+                    ally.vy *= 1.002;
+                }
+            });
+        });
+    }
+
+    function updateMomentumDecay() {
+        livingMain().forEach(e => {
+            if (!momentumModeEnabled) { e.farrelMomentum = 0; return; }
+            e.farrelMomentum = Math.max(0, (e.farrelMomentum || 0) - 0.006);
+            if ((e.farrelMomentum || 0) > 0.5) {
+                e.vx *= 1.0015;
+                e.vy *= 1.0015;
+            }
+        });
+    }
+
+    function updateRevengeSteering() {
+        if (!revengeModeEnabled || isSetupPhase || gameOverTriggered) return;
+        for (const [team, mark] of [...revengeMarks.entries()]) {
+            if (!mark || mark.until < frameCount) { revengeMarks.delete(team); continue; }
+            const target = livingMain().find(e => e.id === mark.targetId && e.hp > 0);
+            if (!target) { revengeMarks.delete(team); continue; }
+            livingMain().forEach(e => {
+                if (e.team !== team || e.id === target.id) return;
+                const d = dist(e, target);
+                if (d < 620) {
+                    const a = Math.atan2(target.y - e.y, target.x - e.x);
+                    e.vx += Math.cos(a) * 0.025;
+                    e.vy += Math.sin(a) * 0.025;
+                    e.farrelRevengeTargetId = target.id;
+                }
+            });
+        }
+    }
+
+    if (typeof applyAI === 'function' && !applyAI.__farrelFun4Wrapped) {
+        const prevAI = applyAI;
+        applyAI = function farrelFun4ApplyAI(e) {
+            if (e && e.type === 'alchemist') {
+                if (handleAlchemistAI(e)) return;
+            }
+            return prevAI.apply(this, arguments);
+        };
+        applyAI.__farrelFun4Wrapped = true;
+        window.applyAI = applyAI;
+    }
+
+    if (typeof damageEntity === 'function' && !damageEntity.__farrelFun4Wrapped) {
+        const prevDamage = damageEntity;
+        damageEntity = function farrelFun4DamageEntity(victim, amount, impactX, impactY, source) {
+            let finalAmount = Number(amount) || 0;
+            if (commanderAuraEnabled && victim && victim.farrelCommanderGuard) finalAmount *= 0.88;
+            if (momentumModeEnabled && source && source.hp > 0 && source.id !== victim?.id) {
+                finalAmount *= 1 + Math.min(0.22, (source.farrelMomentum || 0) * 0.055);
+            }
+            if (revengeModeEnabled && victim && source && source.farrelRevengeTargetId === victim.id) finalAmount *= 1.10;
+
+            const victimTeam = victim ? victim.team : null;
+            const victimId = victim ? victim.id : null;
+            const beforeHp = victim ? victim.hp : 0;
+            const result = prevDamage.call(this, victim, finalAmount, impactX, impactY, source);
+            const afterHp = victim ? victim.hp : beforeHp;
+            const dealt = Math.max(0, (beforeHp || 0) - (afterHp || 0));
+
+            if (momentumModeEnabled && dealt > 0 && source && source.hp > 0 && source.id !== victimId) {
+                source.farrelMomentum = Math.min(5, (source.farrelMomentum || 0) + 0.38);
+            }
+
+            if (revengeModeEnabled && beforeHp > 0 && victim && victim.hp <= 0 && source && source.hp > 0 && source.team !== victimTeam) {
+                revengeMarks.set(victimTeam, { targetId: source.id, until: frameCount + 60 * 9 });
+                source.farrelRevengeMarkedUntil = frameCount + 60 * 9;
+                if (typeof spawnDamageText === 'function') spawnDamageText(source.x, source.y - 42, 'REVENGE TARGET', '#ff6b81', true);
+            }
+            return result;
+        };
+        damageEntity.__farrelFun4Wrapped = true;
+        window.damageEntity = damageEntity;
+    }
+
+    if (typeof update === 'function' && !update.__farrelFun4Wrapped) {
+        const prevUpdate = update;
+        update = function farrelFun4Update() {
+            const result = prevUpdate.apply(this, arguments);
+            updateCommanderAura();
+            updateMomentumDecay();
+            updateRevengeSteering();
+            updateAlchemistStatuses();
+            applyArenaThemeForces();
+            return result;
+        };
+        update.__farrelFun4Wrapped = true;
+        window.update = update;
+    }
+
+    // More arena presets.
+    if (typeof applyArenaPreset === 'function' && !applyArenaPreset.__farrelFun4Wrapped) {
+        const prevPreset = applyArenaPreset;
+        applyArenaPreset = function farrelFun4ApplyArenaPreset(preset) {
+            const customPresets = ['maze', 'fortress_plus', 'ring_of_fire', 'pinball', 'islands'];
+            if (!customPresets.includes(preset)) return prevPreset.apply(this, arguments);
+            if (!isSetupPhase) {
+                if (typeof showCustomMessage === 'function') showCustomMessage('Arena Preset', 'Reset before changing arena presets.');
+                return;
+            }
+            if (typeof clearObstacles === 'function') clearObstacles();
+            const w = canvas.width, h = canvas.height, cx = w / 2, cy = h / 2;
+            const rock = (x, y, r = 24) => obstacles.push({ x, y, type: 'rock', radius: r, mass: 1000, hp: 170, maxHp: 170 });
+            const barrel = (x, y) => obstacles.push({ x, y, type: 'barrel', radius: 20, mass: 2, hp: 50, maxHp: 50, vx: 0, vy: 0, friction: 0.92 });
+            const lava = (x, y, r = 28) => obstacles.push({ x, y, type: 'lava', radius: r, mass: 1000, hp: 9999, maxHp: 9999 });
+            const ice = (x, y, r = 28) => obstacles.push({ x, y, type: 'ice', radius: r, mass: 1000, hp: 9999, maxHp: 9999 });
+
+            if (preset === 'maze') {
+                for (let y = 95; y < h - 80; y += 90) {
+                    for (let x = 120; x < w - 100; x += 115) {
+                        if ((Math.round(x / 115) + Math.round(y / 90)) % 2 === 0) rock(x, y, 22);
+                    }
+                }
+            }
+            if (preset === 'fortress_plus') {
+                [-1, 1].forEach(side => {
+                    const bx = cx + side * Math.min(220, w * 0.28);
+                    for (let i = -2; i <= 2; i++) rock(bx, cy + i * 54, 23);
+                    rock(bx - side * 55, cy - 112, 22); rock(bx - side * 55, cy + 112, 22);
+                });
+                barrel(cx, cy); barrel(cx, cy - 90); barrel(cx, cy + 90);
+            }
+            if (preset === 'ring_of_fire') {
+                for (let i = 0; i < 18; i++) {
+                    const a = (Math.PI * 2 * i) / 18;
+                    lava(cx + Math.cos(a) * Math.min(w, h) * 0.30, cy + Math.sin(a) * Math.min(w, h) * 0.30, 22);
+                }
+                rock(cx, cy, 30);
+            }
+            if (preset === 'pinball') {
+                for (let i = 0; i < 14; i++) {
+                    const x = 80 + (i % 7) * Math.max(55, (w - 160) / 6);
+                    const y = i < 7 ? h * 0.36 : h * 0.64;
+                    ice(x, y, 24);
+                }
+                barrel(cx - 80, cy); barrel(cx + 80, cy);
+            }
+            if (preset === 'islands') {
+                for (let i = 0; i < 16; i++) {
+                    const a = i * Math.PI * 2 / 16;
+                    rock(cx + Math.cos(a) * Math.min(w, h) * 0.26, cy + Math.sin(a) * Math.min(w, h) * 0.20, 20);
+                }
+                for (let i = -2; i <= 2; i++) lava(cx + i * 58, cy, 20);
+            }
+            if (typeof showCustomMessage === 'function') showCustomMessage('Arena Preset', `${preset.replace(/_/g, ' ').toUpperCase()} loaded.`);
+            if (typeof resetPositions === 'function') resetPositions();
+        };
+        applyArenaPreset.__farrelFun4Wrapped = true;
+        window.applyArenaPreset = applyArenaPreset;
+    }
+
+    function drawFun4OverlaysWorld() {
+        const live = livingMain();
+        live.forEach(e => {
+            if (e.type === 'alchemist') {
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                ctx.rotate(Math.sin(frameCount * 0.05) * 0.12);
+                ctx.fillStyle = '#2ed573';
+                ctx.strokeStyle = '#064e3b';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc((e.radius || 20) + 8, -8, 7, 0, Math.PI * 2);
+                ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#f1c40f';
+                ctx.fillRect((e.radius || 20) + 4, -2, 8, 14);
+                ctx.restore();
+            }
+            if (e.farrelCommander) {
+                ctx.save();
+                ctx.globalAlpha = 0.38;
+                ctx.strokeStyle = '#f1c40f';
+                ctx.lineWidth = 5;
+                ctx.beginPath(); ctx.arc(e.x, e.y, 190, 0, Math.PI * 2); ctx.stroke();
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 18px Segoe UI'; ctx.textAlign = 'center';
+                ctx.fillText('★ CMD', e.x, e.y - (e.radius || 20) - 28);
+                ctx.restore();
+            }
+            if ((e.farrelMomentum || 0) > 1) {
+                ctx.save(); ctx.globalAlpha = 0.22; ctx.strokeStyle = '#ff9f43'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.arc(e.x, e.y, (e.radius || 20) + 12 + (e.farrelMomentum || 0) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+            }
+            if ((e.farrelRevengeMarkedUntil || 0) > frameCount) {
+                ctx.save(); ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 4; ctx.setLineDash([8, 5]);
+                ctx.beginPath(); ctx.arc(e.x, e.y, (e.radius || 20) + 22, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+            }
+        });
+
+        // Arena theme world overlays.
+        if (typeof ARENA_THEME !== 'undefined') {
+            ctx.save();
+            if (ARENA_THEME === 'neon') {
+                ctx.globalAlpha = 0.18; ctx.strokeStyle = '#00cec9'; ctx.lineWidth = 2;
+                for (let x = 0; x < canvas.width; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+                for (let y = 0; y < canvas.height; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+            }
+            if (ARENA_THEME === 'volcano') {
+                ctx.globalAlpha = 0.22; ctx.strokeStyle = '#ff6b00'; ctx.lineWidth = 16;
+                ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+            }
+            if (ARENA_THEME === 'space') {
+                ctx.globalAlpha = 0.45; ctx.fillStyle = '#dfe6e9';
+                for (let i = 0; i < 80; i++) { const x = (i * 97) % canvas.width, y = (i * 53) % canvas.height; ctx.fillRect(x, y, 2, 2); }
+            }
+            if (ARENA_THEME === 'aquarium') {
+                ctx.globalAlpha = 0.18; ctx.strokeStyle = '#00c3ff'; ctx.lineWidth = 3;
+                for (let y = 40; y < canvas.height; y += 70) { ctx.beginPath(); for (let x = 0; x <= canvas.width; x += 30) ctx.lineTo(x, y + Math.sin(x * 0.035 + frameCount * 0.035) * 5); ctx.stroke(); }
+            }
+            ctx.restore();
+        }
+    }
+
+    function drawScreenOverlays() {
+        const live = livingMain();
+        if (healthBarsEnabled) {
+            ctx.save();
+            live.forEach(e => {
+                const z = camera && camera.zoom ? camera.zoom : 1;
+                const sx = (e.x - camera.x) * z + canvas.width / 2;
+                const sy = (e.y - camera.y) * z + canvas.height / 2;
+                const w = 42, h = 6;
+                const ratio = Math.max(0, Math.min(1, (e.hp || 0) / Math.max(1, e.maxHp || e.hp || 1)));
+                ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(sx - w/2, sy - (e.radius || 20) * z - 18, w, h);
+                ctx.fillStyle = ratio > .55 ? '#2ed573' : ratio > .25 ? '#f1c40f' : '#ff4757'; ctx.fillRect(sx - w/2, sy - (e.radius || 20) * z - 18, w * ratio, h);
+                ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.strokeRect(sx - w/2, sy - (e.radius || 20) * z - 18, w, h);
+            });
+            ctx.restore();
+        }
+        if (minimapEnabled) {
+            const mw = 150, mh = 105, pad = 12;
+            ctx.save();
+            ctx.setTransform(1,0,0,1,0,0);
+            ctx.globalAlpha = .88;
+            ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(canvas.width - mw - pad, canvas.height - mh - pad, mw, mh);
+            ctx.strokeStyle = '#fff'; ctx.strokeRect(canvas.width - mw - pad, canvas.height - mh - pad, mw, mh);
+            live.forEach(e => {
+                const x = canvas.width - mw - pad + (e.x / Math.max(1, canvas.width)) * mw;
+                const y = canvas.height - mh - pad + (e.y / Math.max(1, canvas.height)) * mh;
+                ctx.fillStyle = e.color || (e.team === 1 ? '#00c3ff' : '#d62626');
+                ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.restore();
+        }
+    }
+
+    if (typeof draw === 'function' && !draw.__farrelFun4Wrapped) {
+        const prevDraw = draw;
+        draw = function farrelFun4Draw() {
+            const result = prevDraw.apply(this, arguments);
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(camera.zoom, camera.zoom);
+            ctx.translate(-camera.x, -camera.y);
+            drawFun4OverlaysWorld();
+            ctx.restore();
+            drawScreenOverlays();
+            return result;
+        };
+        draw.__farrelFun4Wrapped = true;
+        window.draw = draw;
+    }
+
+    setTimeout(() => {
+        installUiButtons();
+        installAlchemist();
+        if (typeof populateFighterSelect === 'function') {
+            populateFighterSelect('tourneyCustomFighterSelect');
+            populateFighterSelect('campaignShopSelect');
+        }
+    }, 0);
+})();
+
+
+/* --- FARREL ALCHEMIST + CUSTOM TAB SCROLL FIX --- */
+(function farrelAlchemistCustomScrollFinalFix() {
+    function markCustomTabScrollable() {
+        const row = document.getElementById('row-3');
+        if (!row) return;
+        row.classList.add('custom-tab-scrollable');
+        row.querySelectorAll('.customize-group, .settings-group, .arena-preset-panel').forEach(el => {
+            el.style.position = 'relative';
+            el.style.top = 'auto';
+        });
+    }
+
+    if (typeof showRow === 'function' && !showRow.__farrelCustomScrollFinalWrapped) {
+        const oldShowRow = showRow;
+        showRow = function farrelCustomScrollShowRow(rowNum) {
+            const result = oldShowRow.apply(this, arguments);
+            markCustomTabScrollable();
+            if (Number(rowNum) === 3) {
+                const row = document.getElementById('row-3');
+                if (row && !row.__farrelWasOpenedOnce) {
+                    row.scrollTop = 0;
+                    row.__farrelWasOpenedOnce = true;
+                }
+            }
+            return result;
+        };
+        showRow.__farrelCustomScrollFinalWrapped = true;
+        window.showRow = showRow;
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', markCustomTabScrollable);
+    } else {
+        markCustomTabScrollable();
+    }
 })();

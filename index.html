@@ -58,13 +58,13 @@
         </select>
         
         <div id="countControlRow" style="display:flex; gap:3px; align-items:center; justify-content: center;">
-    <input type="number" id="p1Count" value="1" min="1" max="10000" 
+    <input type="number" id="p1Count" value="1" min="1" 
            style="text-align: center; width: 35px; padding: 2px; height: 30px;" 
            onchange="updateSquadUI()" placeholder="#L">
 
     <span id="countVsLabel" style="font-size:0.7rem; font-weight:bold; color:#555;">VS</span>
 
-    <input type="number" id="p2Count" value="1" min="1" max="10000" 
+    <input type="number" id="p2Count" value="1" min="1" 
            style="text-align: center; width: 35px; padding: 2px; height: 30px;" 
            onchange="updateSquadUI()" placeholder="#R">
 
@@ -95,6 +95,9 @@
             <button class="btn-reset" onclick="randomizeSquads('p1')" style="background-color: #9b59b6; flex: 1; padding: 6px 2px; font-size: 0.8rem;">RND L</button>
             <button class="btn-reset" onclick="randomizeSquads('all')" style="background-color: #8e44ad; flex: 1; padding: 6px 2px; font-size: 0.8rem;">ALL</button>
             <button class="btn-reset" onclick="randomizeSquads('p2')" style="background-color: #9b59b6; flex: 1; padding: 6px 2px; font-size: 0.8rem;">RND R</button>
+            <button class="btn-reset smart-draft-btn" onclick="smartDraftSquads()" title="Build a power-balanced randomized matchup" style="background-color:#00b894; flex:1.2; padding:6px 2px; font-size:0.72rem;">SMART DRAFT</button>
+            <button class="btn-reset mirror-match-btn" onclick="mirrorLeftSquadToRight()" title="Copy Left Squad to Right Squad" style="background-color:#6c5ce7; flex:1; padding:6px 2px; font-size:0.72rem;">MIRROR L→R</button>
+            <button class="btn-reset crossfire-map-btn" onclick="applyCrossfireMapPreset()" title="Create a lane-based obstacle map" style="background-color:#d35400; flex:1; padding:6px 2px; font-size:0.72rem;">LANES MAP</button>
         </div>
 
         <div style="display:flex; gap:2px; width: 100%;">
@@ -230,6 +233,7 @@
                     <button class="btn-reset danger" onclick="clearCampaignRoster()">Clear Squad</button>
                     <button class="btn-reset save" onclick="saveCampaignState(true)">Save</button>
                     <button class="btn-reset danger" onclick="resetCampaignRun()">New Run</button>
+                    <button class="btn-reset" onclick="exitCampaignMode()">Exit Campaign</button>
                 </div>
             </section>
 
@@ -347,6 +351,12 @@
             <button id="rageModeBtn" class="btn-toggle" onclick="toggleRageMode()" style="width: auto;">Rage Mode: OFF</button>
             <button id="powerDropsBtn" class="btn-toggle" onclick="togglePowerDrops()" style="width: auto;">Power Drops: OFF</button>
             <button id="rivalLinesBtn" class="btn-toggle" onclick="toggleRivalLines()" style="width: auto;">Rival Lines: OFF</button>
+            <button id="autoBalanceBtn" class="btn-toggle" onclick="toggleAutoBalance()" style="width: auto;">Auto Balance: OFF</button>
+            <button id="meteorStormBtn" class="btn-toggle" onclick="toggleMeteorStorm()" style="width: auto;">Meteor Storm: OFF</button>
+            <button id="coachRecapBtn" class="btn-toggle active" onclick="toggleCoachRecap()" style="width: auto;">Coach Recap: ON</button>
+            <button id="arenaWindBtn" class="btn-toggle" onclick="toggleArenaWind()" style="width: auto;">Wind: OFF</button>
+            <button id="vampireRulesBtn" class="btn-toggle" onclick="toggleVampireRules()" style="width: auto;">Vampire Rules: OFF</button>
+            <button id="bountyModeBtn" class="btn-toggle" onclick="toggleBountyMode()" style="width: auto;">Bounty Mark: OFF</button>
             <button id="trailBtn" class="btn-toggle active" onclick="toggleProjectileTrails()" style="width: auto;">Trails: ON</button>
             <button id="cineBtn" class="btn-toggle" onclick="toggleCinematicCamera()" style="width: auto;">Cine Cam: OFF</button>
             <button id="fullscreenBtn" class="btn-toggle" onclick="toggleWatchFullscreen()" style="width: auto;">Fullscreen</button>
@@ -412,9 +422,9 @@
 
         <div id="customMapControls" class="custom-map-controls" style="display:none;">
             <div class="custom-map-row">
-                <input id="customMapWidth" type="number" min="300" max="12000" value="3000" title="Custom map width">
+                <input id="customMapWidth" type="number" min="300" value="3000" title="Custom map width">
                 <span>×</span>
-                <input id="customMapHeight" type="number" min="300" max="9000" value="2000" title="Custom map height">
+                <input id="customMapHeight" type="number" min="300" value="2000" title="Custom map height">
                 <button class="btn-toggle" onclick="applyCustomMapSize()">Apply</button>
             </div>
             <div class="custom-map-presets">
@@ -428,6 +438,12 @@
             <option value="desert">Arena: Desert (2x DMG)</option>
             <option value="mud">Arena: Mud (Slow)</option>
             <option value="snow">Arena: Snow (Slippery)</option>
+            <option value="neon">Arena: Neon Grid (Clear)</option>
+            <option value="volcano">Arena: Volcano (Hot Edges)</option>
+            <option value="space">Arena: Space (Low Gravity)</option>
+            <option value="forest">Arena: Forest (Vines Slow)</option>
+            <option value="aquarium">Arena: Aquarium (Water Drag)</option>
+            <option value="midnight">Arena: Midnight (High Contrast)</option>
         </select>
     </div>
 
