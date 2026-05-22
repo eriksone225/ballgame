@@ -6530,3 +6530,64 @@ body.dark-mode #row-3 .farrel-section-title {
         max-height: calc(var(--control-panel-height) - 68px) !important;
     }
 }
+
+/* --- FARREL MOBILE CONTROL SCROLL PATCH V3 ---
+   Keep the original control-panel layout/visuals, but let the panel content scroll
+   on phones instead of needing the resize handle just to reach lower controls. */
+@media (max-width: 760px) {
+    html,
+    body {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+    }
+
+    body {
+        align-items: center !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Keep the original fixed/resizable panel. Only change clipping into scrolling. */
+    #controlsPanel.controls:not(.controls-hidden) {
+        overflow-x: auto !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior: contain !important;
+        touch-action: pan-x pan-y !important;
+    }
+
+    /* The active tab area can scroll in both directions without changing its layout. */
+    #controlsPanel .control-row,
+    #controlsPanel .control-row.active-control-row,
+    #controlsPanel.controls > .control-row.active-control-row,
+    #controlsPanel.controls > #row-2.control-row.active-control-row {
+        overflow-x: auto !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior: contain !important;
+        touch-action: pan-x pan-y !important;
+    }
+
+    /* Preserve the tab bar behavior: tabs stay looking like tabs, not a redesigned mobile grid. */
+    #controlsPanel .tab-nav-container {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    #controlsPanel.controls::-webkit-scrollbar,
+    #controlsPanel .control-row::-webkit-scrollbar,
+    #controlsPanel .tab-nav-container::-webkit-scrollbar {
+        width: 8px !important;
+        height: 8px !important;
+    }
+
+    #controlsPanel.controls::-webkit-scrollbar-thumb,
+    #controlsPanel .control-row::-webkit-scrollbar-thumb,
+    #controlsPanel .tab-nav-container::-webkit-scrollbar-thumb {
+        background: rgba(0,0,0,0.42) !important;
+        border-radius: 999px !important;
+    }
+}

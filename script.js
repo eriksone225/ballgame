@@ -1872,6 +1872,8 @@ function shatterProjectile(p, impactType = 'wall') {
 
 function handleProjectileWallImpact(p) {
     if (!isShatterProjectile(p) || p.dead) return false;
+    // Farrel update: smart missiles keep hunting the enemy ball instead of wasting themselves on walls.
+    if (p.isHomingMissile) return false;
 
     const pad = p.type === 'cannonball' ? 12 : 4;
 
@@ -2845,7 +2847,7 @@ canvas.addEventListener('contextmenu', function(e) {
             'devourer': { hp: 100, dmg: 'Fatal', ability: 'Dampen & Feast', desc: 'Dampens enemies for 2s. Instakills if touching. Starves.' },
             'dualist': { hp: 110, dmg: 'Dual', ability: 'Dual Handgun Specialist', desc: 'Wields dual handguns. Shoots two targets at once.' },
             'duplicator': { hp: 80, dmg: 'Low', ability: 'Hive Mind (Max 12)', desc: '1s Dupe. 50% HP Clones. Stalemate breaker logic added.' },
-            'fight knight': { hp: 140, dmg: 'Heavy', ability: 'Fake Death & Cleave', desc: 'Ignores pain. Feigns death at critical HP to ambush enemies. Uses a massive slab sword.' },
+            'fight knight': { hp: 180, dmg: 'Heavy', ability: 'Fake Death & Cleave', desc: 'Ignores pain. Feigns death at critical HP to ambush enemies. Uses a massive slab sword.' },
             'engineer': { hp: 90, dmg: 'Low', ability: 'Sentry Turrets', desc: 'Builds up to 6 stationary turrets that shoot foes. Avoids combat.' },
             'grabber': { hp: 125, dmg: 'Low', ability: 'Hook & Crush', desc: 'Slow Hook. Crushes for 35% Max HP over 2s. 3s Cooldown.' }, 
             'grower': { hp: 150, dmg: 'Scaling', ability: 'Infinite Growth', desc: 'Gets bigger, heavier, and stronger over time.' },
@@ -4172,8 +4174,10 @@ if (spawnSide && spawnIndex !== null) {
                     fighter.mass = 2.5; 
                     fighter.reach = 75; 
                     fighter.resurrectionStage = 0; // 0=Full, 1=Cracked, 2=Ripped, 3=Gone, 4=Final
-                    fighter.maxHp = 140; // Start huge
-                    fighter.hp = 140;
+                    fighter.maxHp = 180; // Farrel update: stronger opening armor
+                    fighter.hp = 180;
+                    fighter.armorMax = 180;
+                    fighter.armor = 180;
                     break;
                 case 'lance': fighter.reach = 80; fighter.mass = 1.2; break;
                 case 'aquamarine':
@@ -6115,17 +6119,17 @@ if (e.type === 'chrono') {
                     // Portal Trap & Slam Logic (UPDATED: Multi-target)
                     if (e.portalCooldown <= 0 && e.target && !e.isDancing) { 
                         let dist = Math.sqrt((e.target.x - e.x)**2 + (e.target.y - e.y)**2);
-                        if (dist < 300 && hasLineOfSight(e, e.target)) {
+                        if (dist < 380 && hasLineOfSight(e, e.target)) {
                             // Scan for up to 3 enemies in range
                             let targets = entities.filter(ent => 
                                 ent.team !== e.team && 
-                                Math.sqrt((ent.x - e.x)**2 + (ent.y - e.y)**2) < 300 &&
+                                Math.sqrt((ent.x - e.x)**2 + (ent.y - e.y)**2) < 380 &&
                                 hasLineOfSight(e, ent)
-                            ).slice(0, 3);
+                            ).slice(0, 5);
 
                             if (targets.length > 0) {
                                 // Trigger Ability
-                                e.portalCooldown = 240; // 4 seconds CD
+                                e.portalCooldown = 165; // Farrel update: buffed Spatial cooldown
                                 
                                 targets.forEach(t => {
                                     t.frozen = 120; // Freeze for 2s
@@ -7284,7 +7288,27 @@ if (diff < 1.0) {
                 let diff = Math.abs(attackAngle - victim.angle);
                 if (diff > Math.PI) diff = 2 * Math.PI - diff;
                  // Check if victim is trapped; if so, shield fails
-                 if (diff < 1.0 && !victim.trappedBy) { amount *= 0.1; spawnParticles(impactX, impactY, 'gold', 5); playSound('clash'); return; }
+                 if (diff < 1.0 && !victim.trappedBy) {
+                    // Farrel update: knight-vs-knight shield locks now break over time, so mirror duels can end.
+                    if (damageSource && damageSource.type === 'knight') {
+                        victim.knightClashFatigue = (victim.knightClashFatigue || 0) + Math.max(1, amount);
+                        const breakthrough = victim.knightClashFatigue >= 18 || Math.random() < 0.14;
+                        if (breakthrough) {
+                            amount *= 0.42;
+                            victim.knightClashFatigue = Math.max(0, victim.knightClashFatigue - 18);
+                            spawnParticles(impactX, impactY, 'gold', 10);
+                            spawnDamageText(impactX || victim.x, (impactY || victim.y) - 22, 'SHIELD BREAK', '#f1c40f', true);
+                            if (typeof playSound === 'function') playSound('clash');
+                        } else {
+                            amount *= 0.18;
+                            spawnParticles(impactX, impactY, 'gold', 5);
+                            spawnDamageText(impactX || victim.x, (impactY || victim.y) - 18, 'CLASH', '#f1c40f');
+                            if (typeof playSound === 'function' && frameCount % 5 === 0) playSound('clash');
+                        }
+                    } else {
+                        amount *= 0.1; spawnParticles(impactX, impactY, 'gold', 5); playSound('clash'); return;
+                    }
+                 }
             }
 
             let splatterColor = victim.color;
@@ -7504,13 +7528,13 @@ if (e.nameIndex) {
                 e.isFeigning = false;
                 // --------------------------------
 
-                // Halve Stats (Attrition)
-                e.maxHp = Math.floor(e.maxHp / 2);
-                
-                // Halve Stats (Attrition)
-                e.maxHp = Math.floor(e.maxHp / 2);
-                if (e.maxHp < 5) e.maxHp = 5; // Minimum cap
+                // Farrel update: armor now degrades in readable stages instead of quartering twice.
+                const fightKnightArmorStages = [180, 135, 90, 52, 24];
+                const nextArmorHp = fightKnightArmorStages[e.resurrectionStage] || Math.max(18, Math.floor((e.maxHp || 60) * 0.55));
+                e.maxHp = nextArmorHp;
                 e.hp = e.maxHp;
+                e.armorMax = fightKnightArmorStages[0];
+                e.armor = e.maxHp;
                 
                 // Visuals: Armor Breaking
                 playSound('explosion');
@@ -10412,7 +10436,7 @@ if (e.fun < 0) e.fun = 0;              // Prevent negative fun
                                 
                                 // Bonus Damage if Slamming a target in the queue
                                 if (attacker.slamTargets.includes(victim.id)) {
-                                    dmg = 3.5; // Massive Slam Damage
+                                    dmg = 5.8; // Farrel update: buffed Spatial slam damage
                                     force = 5.0; 
                                     
                                     // Remove from queue so he targets the next guy
@@ -10594,6 +10618,8 @@ if (e.fun < 0) e.fun = 0;              // Prevent negative fun
                // --- PROJECTILE VS OBSTACLE COLLISION: SHATTER + BARREL LOGIC ---
 obstacles.forEach(o => {
     if (p.dead) return;
+    // Farrel update: Missile fighter rockets are smart munitions; they ignore props and keep hunting the ball body.
+    if (p.isHomingMissile) return;
     if (o.type === 'lava' || o.type === 'ice' || o.type === 'black_hole') return;
 
     let d = Math.sqrt((p.x - o.x) ** 2 + (p.y - o.y) ** 2);
@@ -10803,6 +10829,21 @@ if (damageSource && (p.type === 'bullet' || p.type === 'cannonball' || p.type ==
             playSound('explosion');
             spawnParticles(p.x, p.y, 'orange', 20);
             spawnParticles(p.x, p.y, 'red', 8);
+        }
+
+        if (p.isHomingMissile) {
+            // Farrel update: direct body hit that bypasses shields/swords/weapon blocking.
+            const missileDmg = 66;
+            if (damageSource) e.lastAttackerId = damageSource.id;
+            if (typeof recordDamageForRecap === 'function') recordDamageForRecap(damageSource, e, missileDmg);
+            e.hp = Math.max(0, (e.hp || 0) - missileDmg);
+            e.flashTime = 8;
+            e.vx += (p.vx || 0) * 0.85;
+            e.vy += (p.vy || 0) * 0.85;
+            spawnCannonImpactBurst(p.x, p.y, 1.35);
+            spawnDamageText(e.x, e.y - 28, 'DIRECT HIT', '#ffa502', true);
+            p.dead = true;
+            return;
         }
 
         if (p.type === 'cannonball') {
@@ -12152,151 +12193,63 @@ else if (e.type === 'duplicator' && e.isOriginal) {
     ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 
+
 else if (e.type === 'alchemist') {
+    // Clean alchemist silhouette: readable at mobile zoom, no orbit clutter.
     ctx.save();
 
     const cd = Math.max(0, e.alchemyCooldown || 0);
     const healCd = Math.max(0, e.alchemyHealCooldown || 0);
-    const pulse = Math.sin(frameCount * 0.16 + (e.id || 0)) * 1.5;
     const readyToThrow = cd <= 12;
     const readyToHeal = healCd <= 18;
-    const flaskColor = readyToHeal ? '#55efc4' : (readyToThrow ? '#a3e635' : '#6c5ce7');
+    const flaskColor = readyToHeal ? '#55efc4' : (readyToThrow ? '#a3e635' : '#8e44ad');
     const flaskGlow = readyToHeal ? '#00cec9' : (readyToThrow ? '#b8ff4d' : '#c084fc');
+    const r = e.radius || 20;
 
-    // Soft alchemy aura, drawn above the ball so the class is readable even zoomed out.
-    ctx.globalAlpha = 0.78;
+    // Single soft crescent aura instead of multiple rings and bottles.
+    ctx.globalAlpha = 0.45;
     ctx.strokeStyle = flaskGlow;
-    ctx.lineWidth = 3;
-    ctx.shadowColor = flaskGlow;
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.arc(0, 0, e.radius + 7 + pulse, 0.18, Math.PI * 1.85);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1;
-
-    // Short cloak/collar behind the mask.
-    ctx.fillStyle = 'rgba(35, 28, 46, 0.92)';
-    ctx.strokeStyle = '#111';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(-e.radius * 0.42, -e.radius * 0.68);
-    ctx.quadraticCurveTo(-e.radius * 0.95, 0, -e.radius * 0.36, e.radius * 0.72);
-    ctx.lineTo(e.radius * 0.12, e.radius * 0.52);
-    ctx.lineTo(e.radius * 0.12, -e.radius * 0.52);
-    ctx.closePath();
-    ctx.fill();
+    ctx.arc(0, 0, r + 6, -0.7, 0.9);
     ctx.stroke();
+    ctx.globalAlpha = 1;
 
-    // Plague-doctor face plate and shorter beak so it no longer looks like a random spike.
-    ctx.fillStyle = '#262633';
-    ctx.strokeStyle = '#050505';
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    ctx.ellipse(e.radius * 0.28, 0, 12, 15, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#2f2f3f';
-    ctx.beginPath();
-    ctx.moveTo(e.radius * 0.48, -7);
-    ctx.quadraticCurveTo(e.radius + 20, 0, e.radius * 0.48, 9);
-    ctx.quadraticCurveTo(e.radius * 0.64, 1, e.radius * 0.48, -7);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Glowing goggles.
-    ctx.fillStyle = '#dfff37';
-    ctx.strokeStyle = '#111';
-    ctx.lineWidth = 1.6;
-    [-5, 5].forEach(yy => {
-        ctx.beginPath();
-        ctx.arc(e.radius * 0.34, yy, 3.8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-    });
-
-    // Hat brim and top hat, readable silhouette.
+    // Small top hat only. This keeps his identity without covering the whole ball.
     ctx.fillStyle = '#11131a';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(-1, -e.radius - 5, 21, 5.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -r - 4, 17, 4.5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillRect(-9, -e.radius - 25, 18, 20);
-    ctx.strokeRect(-9, -e.radius - 25, 18, 20);
-    ctx.fillStyle = '#55efc4';
-    ctx.fillRect(-8, -e.radius - 12, 16, 3);
-
-    // Bandolier strap and potion bottle on body.
-    ctx.strokeStyle = '#f8e9c7';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-e.radius * 0.50, -e.radius * 0.45);
-    ctx.lineTo(e.radius * 0.34, e.radius * 0.45);
-    ctx.stroke();
-
-    ctx.save();
-    ctx.translate(e.radius * 0.58, e.radius * 0.62);
-    ctx.rotate(Math.sin(frameCount * 0.12) * 0.12);
-    ctx.shadowColor = flaskGlow;
-    ctx.shadowBlur = readyToThrow || readyToHeal ? 12 : 5;
+    ctx.fillRect(-7, -r - 21, 14, 17);
+    ctx.strokeRect(-7, -r - 21, 14, 17);
     ctx.fillStyle = flaskColor;
-    ctx.strokeStyle = '#ffffff';
+    ctx.fillRect(-6, -r - 10, 12, 3);
+
+    // One small potion clipped to the right side, replacing the old bandolier/orbit bottles.
+    ctx.save();
+    ctx.translate(r + 6, 7);
+    ctx.rotate(0.12 * Math.sin((frameCount || 0) * 0.09 + (e.id || 0)));
+    ctx.shadowColor = flaskGlow;
+    ctx.shadowBlur = readyToThrow || readyToHeal ? 8 : 2;
+    ctx.fillStyle = flaskColor;
+    ctx.strokeStyle = '#111';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(-8, -2, 16, 15, 5);
+    if (ctx.roundRect) ctx.roundRect(-5, -7, 10, 14, 4);
+    else ctx.rect(-5, -7, 10, 14);
     ctx.fill();
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#dfe6e9';
-    ctx.fillRect(-3, -10, 6, 9);
-    ctx.strokeStyle = '#fff';
-    ctx.strokeRect(-3, -10, 6, 9);
+    ctx.fillRect(-2, -11, 4, 5);
     ctx.restore();
-
-    // Throwing arm with small bottle, aimed forward.
-    ctx.strokeStyle = '#2d3436';
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(e.radius * 0.22, -e.radius * 0.24);
-    ctx.lineTo(e.radius + 11, -e.radius * 0.34);
-    ctx.stroke();
-
-    ctx.fillStyle = flaskColor;
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(e.radius + 15, -e.radius * 0.36, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Status hint ring: green cross when healing is ready, acid bubbles when attack is ready.
-    if (readyToHeal) {
-        ctx.strokeStyle = '#55efc4';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(-5, e.radius + 11);
-        ctx.lineTo(5, e.radius + 11);
-        ctx.moveTo(0, e.radius + 6);
-        ctx.lineTo(0, e.radius + 16);
-        ctx.stroke();
-    } else if (readyToThrow) {
-        ctx.fillStyle = '#a3e635';
-        for (let i = 0; i < 3; i++) {
-            ctx.globalAlpha = 0.72;
-            ctx.beginPath();
-            ctx.arc(-e.radius - 6 + i * 8, -e.radius * 0.56 - Math.sin(frameCount * 0.12 + i) * 3, 2.5 + i, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-    }
 
     ctx.restore();
 }
+
 else if (e.type === 'chrono') {
     // Orbiting Time Rings (Cyan)
     ctx.strokeStyle = 'cyan'; ctx.lineWidth = 2;
@@ -23187,4 +23140,1004 @@ window.exitTacticalChessMode = exitTacticalChessMode;
     } else {
         markCustomTabScrollable();
     }
+})();
+
+
+/* --- FARREL 2026-05-22 REQUEST PATCH: missile targeting, Bombman ram/throws, Carmage, Lance/Boid/Mammoth/Spatial polish --- */
+(function farrelMay22RequestPatch() {
+    const PATCH_TAG = 'farrelMay22RequestPatch';
+    if (window[PATCH_TAG]) return;
+    window[PATCH_TAG] = true;
+
+    function dist(a, b) {
+        if (!a || !b) return 999999;
+        return Math.hypot((a.x || 0) - (b.x || 0), (a.y || 0) - (b.y || 0));
+    }
+
+    function angleTo(a, b) {
+        return Math.atan2((b.y || 0) - (a.y || 0), (b.x || 0) - (a.x || 0));
+    }
+
+    function clampLocal(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function liveEnemiesFor(unit, includeBoids = false, includeMounts = false) {
+        if (!unit || !Array.isArray(entities)) return [];
+        return entities.filter(e =>
+            e &&
+            e.hp > 0 &&
+            e.team !== unit.team &&
+            e.id !== unit.id &&
+            e.type !== 'turret' &&
+            (includeBoids || e.type !== 'boid') &&
+            (includeMounts || e.type !== 'mammoth_mount') &&
+            !e.isStealthed &&
+            !e.isFeigning
+        );
+    }
+
+    function closestEnemy(unit, maxRange = 999999, includeBoids = false, includeMounts = false) {
+        let best = null;
+        let bestD = maxRange;
+        liveEnemiesFor(unit, includeBoids, includeMounts).forEach(enemy => {
+            const d = dist(unit, enemy);
+            if (d < bestD) {
+                best = enemy;
+                bestD = d;
+            }
+        });
+        return best;
+    }
+
+    function limitSpeed(unit, maxSpeed) {
+        if (!unit) return;
+        const speed = Math.hypot(unit.vx || 0, unit.vy || 0);
+        if (speed > maxSpeed) {
+            unit.vx = (unit.vx / speed) * maxSpeed;
+            unit.vy = (unit.vy / speed) * maxSpeed;
+        }
+    }
+
+    function avoidEdges(unit, padding = 48, force = 0.55) {
+        if (!unit || typeof canvas === 'undefined') return;
+        if (unit.x < padding) unit.vx += force;
+        if (unit.x > canvas.width - padding) unit.vx -= force;
+        if (unit.y < padding) unit.vy += force;
+        if (unit.y > canvas.height - padding) unit.vy -= force;
+    }
+
+    function registerMay22Fighters() {
+        if (typeof FIGHTER_DATA !== 'undefined') {
+            FIGHTER_DATA.carmage = {
+                hp: 125,
+                dmg: 'Car Crash',
+                ability: 'Traffic Summoner',
+                desc: 'Summons cars from the arena edges. Cars roar across lanes, run enemies over, and knock whole groups apart.'
+            };
+
+            if (FIGHTER_DATA.bombman) {
+                FIGHTER_DATA.bombman.ability = '100x Ram + Object Throws';
+                FIGHTER_DATA.bombman.desc = 'A super-heavy bruiser who rams at terrifying speed, deletes boids, throws rocks/spikes/barrels, and smashes fighters into each other.';
+            }
+            if (FIGHTER_DATA.missile) {
+                FIGHTER_DATA.missile.desc = 'Fires smart missiles that ignore obstacles, shields, and weapons, then curve into the enemy ball body.';
+            }
+            if (FIGHTER_DATA.spatial) {
+                FIGHTER_DATA.spatial.hp = Math.max(FIGHTER_DATA.spatial.hp || 100, 125);
+                FIGHTER_DATA.spatial.desc = 'Buffed portal brawler. Traps more enemies, slams harder, and cycles portals faster.';
+            }
+            if (FIGHTER_DATA['fight knight']) {
+                FIGHTER_DATA['fight knight'].hp = 180;
+                FIGHTER_DATA['fight knight'].desc = 'Higher HP and staged armor. His armor starts thick, then visibly degrades as it breaks.';
+            }
+        }
+
+        if (typeof FIGHTER_OPTIONS !== 'undefined' && !FIGHTER_OPTIONS.includes('carmage')) {
+            FIGHTER_OPTIONS.push('carmage');
+            FIGHTER_OPTIONS.sort();
+        }
+
+        if (typeof FIGHTER_VISUALS !== 'undefined') {
+            FIGHTER_VISUALS.carmage = { tag: 'CG', color: '#2d3436', accent: '#ff6b00' };
+            FIGHTER_VISUALS.alchemist = { tag: 'AL', color: '#5f27cd', accent: '#55efc4' };
+        }
+    }
+
+    registerMay22Fighters();
+
+    if (typeof applyClassProps === 'function' && !applyClassProps.__farrelMay22Wrapped) {
+        const oldApplyClassProps = applyClassProps;
+        applyClassProps = function farrelMay22ApplyClassProps(fighter, type) {
+            oldApplyClassProps.apply(this, arguments);
+            if (!fighter) return;
+
+            if (type === 'carmage') {
+                fighter.mass = 1.45;
+                fighter.reach = 720;
+                fighter.bravery = 0.64;
+                fighter.carCooldown = 38;
+                fighter.carBurstLeft = 0;
+                fighter.carBurstGap = 0;
+                fighter.blockCooldown = 45;
+                fighter.blockTimer = 0;
+                fighter.isBlocking = false;
+                fighter.carBlockBias = 0.75;
+            }
+
+            if (type === 'lance') {
+                fighter.mass = Math.max(fighter.mass || 1, 1.35);
+                fighter.reach = Math.max(fighter.reach || 80, 175);
+                fighter.lanceBackstepTimer = 0;
+                fighter.lanceStuckTimer = 0;
+            }
+
+            if (type === 'bombman') {
+                fighter.bombRamCooldown = 65;
+                fighter.bombRamTimer = 0;
+                fighter.bombThrowCooldown = 35;
+                fighter.bombClapCooldown = 0;
+                fighter.bombBoidSweepCooldown = 0;
+                fighter.mass = Math.max(fighter.mass || 18, 22);
+            }
+
+            if (type === 'fight knight') {
+                fighter.maxHp = Math.max(fighter.maxHp || 0, 180);
+                fighter.hp = fighter.maxHp;
+                fighter.armorMax = 180;
+                fighter.armor = fighter.maxHp;
+                fighter.mass = Math.max(fighter.mass || 2.5, 3.0);
+            }
+
+            if (type === 'spatial') {
+                fighter.maxHp = Math.max(fighter.maxHp || 0, 125);
+                fighter.hp = Math.max(fighter.hp || 0, fighter.maxHp);
+                fighter.portalCooldown = Math.min(fighter.portalCooldown || 0, 90);
+                fighter.mass = Math.max(fighter.mass || 1.1, 1.25);
+            }
+        };
+        applyClassProps.__farrelMay22Wrapped = true;
+        window.applyClassProps = applyClassProps;
+    }
+
+    // Stronger final steering for Missile's rockets: target the center of the living ball and ignore decoys/props.
+    function updateSmartBodyMissiles() {
+        if (!Array.isArray(projectiles)) return;
+
+        projectiles.forEach(p => {
+            if (!p || p.dead || !p.isHomingMissile) return;
+
+            p.ignoreObstacles = true;
+            p.noShieldBlock = true;
+            p.type = 'cannonball';
+            p.radius = Math.max(p.radius || 0, 12);
+            p.missileTurnRate = Math.max(p.missileTurnRate || 0, 0.24);
+            p.life = Math.max(p.life || 0, 90);
+
+            let target = p.targetId ? entities.find(e => e && e.id === p.targetId && e.hp > 0 && e.team !== p.team && e.type !== 'turret' && e.type !== 'boid') : null;
+            if (!target) {
+                target = liveEnemiesFor({ team: p.team, id: -1, x: p.x, y: p.y }, false, false)
+                    .sort((a, b) => dist(p, a) - dist(p, b))[0] || null;
+                if (target) p.targetId = target.id;
+            }
+            if (!target) return;
+
+            const desired = angleTo(p, target);
+            const current = Math.atan2(p.vy || 0, p.vx || 0);
+            let diff = desired - current;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+
+            const speedNow = Math.max(8.5, Math.min(15.5, Math.hypot(p.vx || 0, p.vy || 0) + 0.12));
+            const nextAngle = current + clampLocal(diff, -p.missileTurnRate, p.missileTurnRate);
+            p.vx = Math.cos(nextAngle) * speedNow;
+            p.vy = Math.sin(nextAngle) * speedNow;
+
+            // Terminal correction prevents the rocket from orbiting shields/weapon tips forever.
+            const d = dist(p, target);
+            if (d < 72) {
+                p.vx = (target.x - p.x) * 0.36;
+                p.vy = (target.y - p.y) * 0.36;
+            }
+        });
+    }
+
+    function directDamage(target, amount, x, y, source, label, color = '#ff4757') {
+        if (!target || target.hp <= 0) return;
+        const dmg = Math.max(0, Number(amount) || 0);
+        if (source && source.team !== target.team) target.lastAttackerId = source.id;
+        if (typeof recordDamageForRecap === 'function') recordDamageForRecap(source || null, target, dmg);
+        target.hp = Math.max(0, (target.hp || 0) - dmg);
+        target.flashTime = Math.max(target.flashTime || 0, 7);
+        if (label && typeof spawnDamageText === 'function') spawnDamageText(target.x, target.y - 30, label, color, true);
+        if (typeof spawnParticles === 'function') spawnParticles(x || target.x, y || target.y, color, 10);
+    }
+
+    function bombmanAntiBoidSweep(bombman) {
+        if (!bombman || bombman.type !== 'bombman') return;
+        if (bombman.bombBoidSweepCooldown > 0) bombman.bombBoidSweepCooldown--;
+
+        let swept = 0;
+        entities.forEach(enemy => {
+            if (!enemy || enemy.hp <= 0 || enemy.team === bombman.team || enemy.type !== 'boid') return;
+            const d = dist(bombman, enemy);
+            if (d < 115 || bombman.bombRamTimer > 0 && d < 165) {
+                enemy.lastAttackerId = bombman.id;
+                enemy.hp = 0;
+                enemy.vx += Math.cos(angleTo(bombman, enemy)) * 14;
+                enemy.vy += Math.sin(angleTo(bombman, enemy)) * 14;
+                swept++;
+            }
+        });
+
+        if (swept > 0 && bombman.bombBoidSweepCooldown <= 0) {
+            bombman.bombBoidSweepCooldown = 20;
+            if (typeof spawnDamageText === 'function') spawnDamageText(bombman.x, bombman.y - 42, `BOID BREAK x${swept}`, '#ff4757', true);
+            if (typeof spawnParticles === 'function') spawnParticles(bombman.x, bombman.y, '#ff4757', 16);
+            if (typeof playSound === 'function') playSound('explosion_small', 0.55);
+        }
+    }
+
+    function bombmanThrowObstacle(bombman, target) {
+        if (!bombman || !target || !Array.isArray(obstacles)) return false;
+        if (bombman.bombThrowCooldown > 0) return false;
+
+        const throwable = obstacles
+            .filter(o => o && o.hp > 0 && ['rock', 'spike', 'barrel'].includes(o.type) && dist(bombman, o) < 150)
+            .sort((a, b) => dist(bombman, a) - dist(bombman, b))[0];
+
+        if (!throwable) return false;
+
+        const a = angleTo(throwable, target);
+        const speed = throwable.type === 'barrel' ? 15.5 : throwable.type === 'spike' ? 13.0 : 12.2;
+        throwable.vx = Math.cos(a) * speed;
+        throwable.vy = Math.sin(a) * speed;
+        throwable.friction = 0.985;
+        throwable.thrownByBombmanId = bombman.id;
+        throwable.thrownTeam = bombman.team;
+        throwable.thrownTimer = 95;
+        throwable.thrownDamage = throwable.type === 'barrel' ? 72 : throwable.type === 'spike' ? 48 : 38;
+        throwable.mass = Math.max(throwable.mass || 1, throwable.type === 'rock' ? 18 : 8);
+
+        bombman.vx -= Math.cos(a) * 4;
+        bombman.vy -= Math.sin(a) * 4;
+        bombman.bombThrowCooldown = 76;
+
+        if (typeof spawnDamageText === 'function') spawnDamageText(bombman.x, bombman.y - 38, `THROW ${throwable.type.toUpperCase()}`, '#ff7675', true);
+        if (typeof spawnParticles === 'function') spawnParticles(throwable.x, throwable.y, throwable.type === 'spike' ? '#b2bec3' : '#636e72', 15);
+        if (typeof playSound === 'function') playSound('heavy_hit', 0.5);
+        return true;
+    }
+
+    function updateThrownBombmanObjects() {
+        if (!Array.isArray(obstacles)) return;
+        obstacles.forEach(o => {
+            if (!o || !o.thrownByBombmanId || o.hp <= 0) return;
+
+            o.thrownTimer = (o.thrownTimer || 0) - 1;
+            o.x += o.vx || 0;
+            o.y += o.vy || 0;
+            o.vx *= o.friction || 0.985;
+            o.vy *= o.friction || 0.985;
+
+            const pad = o.radius || 20;
+            if (o.x < pad || o.x > canvas.width - pad) { o.vx *= -0.75; o.x = clampLocal(o.x, pad, canvas.width - pad); }
+            if (o.y < pad || o.y > canvas.height - pad) { o.vy *= -0.75; o.y = clampLocal(o.y, pad, canvas.height - pad); }
+
+            const source = entities.find(e => e && e.id === o.thrownByBombmanId);
+            entities.forEach(enemy => {
+                if (!enemy || enemy.hp <= 0 || enemy.team === o.thrownTeam || enemy.type === 'turret') return;
+                const hitRange = (enemy.radius || 20) + (o.radius || 20) + 4;
+                if (dist(o, enemy) > hitRange) return;
+
+                const a = angleTo(o, enemy);
+                directDamage(enemy, o.thrownDamage || 34, o.x, o.y, source || null, 'CRUSHED', '#ff7675');
+                enemy.vx += Math.cos(a) * 10;
+                enemy.vy += Math.sin(a) * 10;
+
+                if (o.type === 'barrel') {
+                    o.hp = 0;
+                    if (typeof triggerExplosion === 'function') triggerExplosion(o.x, o.y, 135, 50, o.thrownByBombmanId);
+                } else {
+                    o.hp = Math.max(0, (o.hp || 1) - 999);
+                    if (typeof spawnDamageText === 'function') spawnDamageText(o.x, o.y - 18, 'SHATTER', '#dfe6e9', true);
+                    if (typeof spawnParticles === 'function') spawnParticles(o.x, o.y, '#dfe6e9', 18);
+                }
+            });
+
+            if (o.thrownTimer <= 0 || Math.hypot(o.vx || 0, o.vy || 0) < 0.45) {
+                o.thrownByBombmanId = null;
+                o.thrownTeam = null;
+                o.thrownTimer = 0;
+            }
+        });
+    }
+
+    function bombmanClapSmash(bombman) {
+        if (!bombman || bombman.bombClapCooldown > 0) return false;
+        const enemies = liveEnemiesFor(bombman, true, true).filter(e => dist(bombman, e) < 135);
+        if (enemies.length < 2) return false;
+
+        enemies.sort((a, b) => dist(bombman, a) - dist(bombman, b));
+        const a = enemies[0];
+        const b = enemies[1];
+        const midX = (a.x + b.x) / 2;
+        const midY = (a.y + b.y) / 2;
+
+        [a, b].forEach(enemy => {
+            const pull = Math.atan2(midY - enemy.y, midX - enemy.x);
+            enemy.vx += Math.cos(pull) * 18;
+            enemy.vy += Math.sin(pull) * 18;
+            directDamage(enemy, enemy.type === 'boid' ? 999 : 22, enemy.x, enemy.y, bombman, 'SMASHED', '#ff4757');
+        });
+
+        bombman.bombClapCooldown = 95;
+        if (typeof spawnDamageText === 'function') spawnDamageText(bombman.x, bombman.y - 44, 'CLAP SMASH', '#ff4757', true);
+        if (typeof spawnParticles === 'function') spawnParticles(midX, midY, '#ff4757', 24);
+        if (typeof playSound === 'function') playSound('explosion_small', 0.75);
+        return true;
+    }
+
+    function bombmanRamControl(bombman, target) {
+        if (!bombman || !target) return;
+
+        if (bombman.bombRamCooldown === undefined) bombman.bombRamCooldown = 45;
+        if (bombman.bombRamTimer === undefined) bombman.bombRamTimer = 0;
+        if (bombman.bombThrowCooldown === undefined) bombman.bombThrowCooldown = 0;
+        if (bombman.bombClapCooldown === undefined) bombman.bombClapCooldown = 0;
+
+        if (bombman.bombRamCooldown > 0) bombman.bombRamCooldown--;
+        if (bombman.bombThrowCooldown > 0) bombman.bombThrowCooldown--;
+        if (bombman.bombClapCooldown > 0) bombman.bombClapCooldown--;
+
+        const d = dist(bombman, target);
+        const a = angleTo(bombman, target);
+        bombman.angle = a;
+
+        if (bombman.bombRamTimer <= 0 && bombman.bombRamCooldown <= 0 && d > 85 && d < 620) {
+            bombman.bombRamTimer = 18;
+            bombman.bombRamCooldown = 135;
+            bombman.vx += Math.cos(a) * 58;
+            bombman.vy += Math.sin(a) * 58;
+            if (typeof spawnDamageText === 'function') spawnDamageText(bombman.x, bombman.y - 48, '100x RAM', '#ff4757', true);
+            if (typeof spawnParticles === 'function') spawnParticles(bombman.x, bombman.y, '#ff4757', 26);
+            if (typeof playSound === 'function') playSound('explosion_small', 0.8);
+        }
+
+        if (bombman.bombRamTimer > 0) {
+            bombman.bombRamTimer--;
+            bombman.isRamming = true;
+            bombman.vx += Math.cos(bombman.angle) * 5.2;
+            bombman.vy += Math.sin(bombman.angle) * 5.2;
+            limitSpeed(bombman, 52);
+
+            liveEnemiesFor(bombman, true, true).forEach(enemy => {
+                const hitDistance = (bombman.radius || 24) + (enemy.radius || 20) + 34;
+                if (dist(bombman, enemy) <= hitDistance) {
+                    const hitAngle = angleTo(bombman, enemy);
+                    directDamage(enemy, enemy.type === 'boid' ? 999 : 54, enemy.x, enemy.y, bombman, enemy.type === 'boid' ? 'BOID ERASED' : 'RAMMED', '#ff4757');
+                    enemy.vx += Math.cos(hitAngle) * 24;
+                    enemy.vy += Math.sin(hitAngle) * 24;
+                }
+            });
+        } else {
+            bombman.isRamming = false;
+            limitSpeed(bombman, 9.5);
+        }
+    }
+
+    function handleUpgradedBombmanAI(bombman) {
+        if (!bombman || bombman.type !== 'bombman' || bombman.hp <= 0 || isSetupPhase || bombman.isDancing) return false;
+
+        bombman.isBlocking = false;
+        bombman.blockTimer = 0;
+
+        const target = closestEnemy(bombman, 9999, true, true);
+        if (!target) return true;
+
+        bombman.target = target;
+        const a = angleTo(bombman, target);
+        const d = dist(bombman, target);
+        bombman.angle = a;
+
+        bombmanRamControl(bombman, target);
+        bombmanAntiBoidSweep(bombman);
+        bombmanClapSmash(bombman);
+        bombmanThrowObstacle(bombman, target);
+
+        if (bombman.bombRamTimer <= 0) {
+            bombman.vx += Math.cos(a) * (d > 100 ? 0.78 : 0.32);
+            bombman.vy += Math.sin(a) * (d > 100 ? 0.78 : 0.32);
+            if (d < 76) {
+                target.vx += Math.cos(a) * 6;
+                target.vy += Math.sin(a) * 6;
+                directDamage(target, target.type === 'boid' ? 999 : 20, target.x, target.y, bombman, 'BOMB SMASH', '#ff4757');
+            }
+        }
+
+        avoidEdges(bombman, 38, 0.8);
+        return true;
+    }
+
+    function handleStableBoidAI(boid) {
+        if (!boid || boid.type !== 'boid') return false;
+        if (isSetupPhase || boid.hp <= 0) return true;
+
+        const friends = entities.filter(e => e && e !== boid && e.type === 'boid' && e.team === boid.team && e.hp > 0);
+        const enemies = liveEnemiesFor(boid, false, true);
+        let sepX = 0, sepY = 0, aliX = 0, aliY = 0, cohX = 0, cohY = 0, n = 0;
+
+        friends.forEach(other => {
+            const dx = boid.x - other.x;
+            const dy = boid.y - other.y;
+            const d = Math.max(1, Math.hypot(dx, dy));
+            if (d < 26) { sepX += dx / d; sepY += dy / d; }
+            if (d < 85) { aliX += other.vx || 0; aliY += other.vy || 0; cohX += other.x; cohY += other.y; n++; }
+        });
+
+        if (n > 0) {
+            aliX /= n; aliY /= n; cohX = cohX / n - boid.x; cohY = cohY / n - boid.y;
+        }
+
+        const target = enemies.sort((a, b) => dist(boid, a) - dist(boid, b))[0] || null;
+        if (target) {
+            const a = angleTo(boid, target);
+            boid.vx += Math.cos(a) * 0.46;
+            boid.vy += Math.sin(a) * 0.46;
+            boid.angle = a;
+        } else if (n > 0) {
+            boid.vx += -cohY * 0.012;
+            boid.vy += cohX * 0.012;
+        }
+
+        boid.vx += sepX * 0.68 + aliX * 0.04 + cohX * 0.006 + (Math.random() - 0.5) * 0.08;
+        boid.vy += sepY * 0.68 + aliY * 0.04 + cohY * 0.006 + (Math.random() - 0.5) * 0.08;
+        avoidEdges(boid, 20, 0.65);
+        limitSpeed(boid, 4.8);
+        if (Math.hypot(boid.vx || 0, boid.vy || 0) > 0.1) boid.angle = Math.atan2(boid.vy, boid.vx);
+        return true;
+    }
+
+    function handleLanceKiteAI(lance) {
+        if (!lance || lance.type !== 'lance') return false;
+        if (isSetupPhase || lance.hp <= 0 || lance.isDancing || lance.frozen > 0) return true;
+
+        const target = closestEnemy(lance, 760, false, true);
+        if (!target) return false;
+        lance.target = target;
+
+        const d = dist(lance, target);
+        const a = angleTo(lance, target);
+        lance.angle = a;
+        lance.reach = clampLocal(d - (target.radius || 20) + 18, 115, 245);
+
+        if (lance.lanceBackstepTimer === undefined) lance.lanceBackstepTimer = 0;
+        if (lance.lanceStuckTimer === undefined) lance.lanceStuckTimer = 0;
+        if (lance.lanceBackstepTimer > 0) lance.lanceBackstepTimer--;
+
+        const speed = Math.hypot(lance.vx || 0, lance.vy || 0);
+        if (speed < 0.08 && d < 150) lance.lanceStuckTimer++;
+        else lance.lanceStuckTimer = Math.max(0, lance.lanceStuckTimer - 1);
+
+        if (d < 250 || lance.lanceStuckTimer > 12) {
+            lance.vx -= Math.cos(a) * 0.92;
+            lance.vy -= Math.sin(a) * 0.92;
+            const side = Math.sin((frameCount || 0) * 0.075 + lance.id * 9) > 0 ? 1 : -1;
+            lance.vx += Math.cos(a + Math.PI / 2 * side) * 0.36;
+            lance.vy += Math.sin(a + Math.PI / 2 * side) * 0.36;
+            lance.lanceBackstepTimer = 18;
+        } else if (d > 390) {
+            lance.vx += Math.cos(a) * 0.34;
+            lance.vy += Math.sin(a) * 0.34;
+        } else {
+            const side = Math.sin((frameCount || 0) * 0.045 + lance.id * 5) > 0 ? 1 : -1;
+            lance.vx += Math.cos(a + Math.PI / 2 * side) * 0.24;
+            lance.vy += Math.sin(a + Math.PI / 2 * side) * 0.24;
+            lance.vx -= Math.cos(a) * 0.16;
+            lance.vy -= Math.sin(a) * 0.16;
+        }
+
+        avoidEdges(lance, 54, 0.8);
+        limitSpeed(lance, 7.4);
+        return true;
+    }
+
+    function spawnCarmageCar(carmage, target) {
+    if (!carmage || !target || !Array.isArray(projectiles)) return false;
+
+    const vehiclePool = [
+        { kind: 'tiny car', label: 'TINY CAR', width: 38, height: 22, radius: 18, speed: 22, damage: 38, maxHits: 1, color: '#00cec9', window: '#dff9fb', weight: 16 },
+        { kind: 'car', label: 'CAR', width: 58, height: 30, radius: 28, speed: 17, damage: 58, maxHits: 2, color: '#2d3436', window: '#74b9ff', weight: 24 },
+        { kind: 'big car', label: 'BIG CAR', width: 76, height: 36, radius: 34, speed: 15, damage: 72, maxHits: 2, color: '#6c5ce7', window: '#a29bfe', weight: 18 },
+        { kind: 'limousine', label: 'LIMO', width: 105, height: 31, radius: 42, speed: 14, damage: 68, maxHits: 3, color: '#111111', window: '#dfe6e9', weight: 12 },
+        { kind: 'truck', label: 'TRUCK', width: 92, height: 44, radius: 42, speed: 13, damage: 88, maxHits: 3, color: '#e17055', window: '#ffeaa7', weight: 18 },
+        { kind: 'box truck', label: 'BOX TRUCK', width: 118, height: 48, radius: 50, speed: 11.5, damage: 96, maxHits: 3, color: '#636e72', window: '#81ecec', weight: 8 }
+    ];
+
+    const totalWeight = vehiclePool.reduce((sum, v) => sum + v.weight, 0);
+    let roll = Math.random() * totalWeight;
+    let vehicle = vehiclePool[1];
+    for (const candidate of vehiclePool) {
+        roll -= candidate.weight;
+        if (roll <= 0) { vehicle = candidate; break; }
+    }
+
+    const horizontal = Math.random() < 0.54;
+    let x, y, a;
+    const laneSpread = vehicle.kind.includes('truck') || vehicle.kind === 'limousine' ? 125 : 95;
+    const edgePad = Math.max(70, vehicle.width / 2 + 30);
+
+    if (horizontal) {
+        const fromLeft = target.x > canvas.width / 2 ? true : Math.random() < 0.5;
+        x = fromLeft ? -edgePad : canvas.width + edgePad;
+        y = clampLocal(target.y + (Math.random() - 0.5) * laneSpread, 35, canvas.height - 35);
+        a = fromLeft ? 0 : Math.PI;
+    } else {
+        const fromTop = target.y > canvas.height / 2 ? true : Math.random() < 0.5;
+        x = clampLocal(target.x + (Math.random() - 0.5) * laneSpread, 35, canvas.width - 35);
+        y = fromTop ? -edgePad : canvas.height + edgePad;
+        a = fromTop ? Math.PI / 2 : -Math.PI / 2;
+    }
+
+    const speed = vehicle.speed + Math.random() * 1.6;
+    projectiles.push({
+        x, y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        team: carmage.team,
+        life: vehicle.kind.includes('truck') || vehicle.kind === 'limousine' ? 125 : 105,
+        type: 'car',
+        isCarmageCar: true,
+        carKind: vehicle.kind,
+        carLabel: vehicle.label,
+        shooterId: carmage.id,
+        radius: vehicle.radius,
+        carWidth: vehicle.width,
+        carHeight: vehicle.height,
+        carAngle: a,
+        carDamage: vehicle.damage,
+        carMaxHits: vehicle.maxHits,
+        carColor: vehicle.color,
+        carWindowColor: vehicle.window,
+        hitIds: []
+    });
+
+    const shout = vehicle.kind.includes('truck') ? 'TRUCK!' : vehicle.label + '!';
+    if (typeof spawnDamageText === 'function') spawnDamageText(carmage.x, carmage.y - 34, shout, '#ff6b00', true);
+    if (typeof playSound === 'function') playSound(vehicle.kind.includes('truck') ? 'cannon' : 'turret', vehicle.kind.includes('truck') ? 0.42 : 0.30);
+    return true;
+}
+
+    function handleCarmageAI(carmage) {
+    if (!carmage || carmage.type !== 'carmage') return false;
+    if (isSetupPhase || carmage.hp <= 0 || carmage.isDancing || carmage.frozen > 0) return true;
+
+    if (carmage.carCooldown === undefined) carmage.carCooldown = 30;
+    if (carmage.carBurstLeft === undefined) carmage.carBurstLeft = 0;
+    if (carmage.carBurstGap === undefined) carmage.carBurstGap = 0;
+    if (carmage.blockCooldown === undefined) carmage.blockCooldown = 45;
+    if (carmage.blockTimer === undefined) carmage.blockTimer = 0;
+
+    if (carmage.carCooldown > 0) carmage.carCooldown--;
+    if (carmage.carBurstGap > 0) carmage.carBurstGap--;
+    if (carmage.blockCooldown > 0) carmage.blockCooldown--;
+    if (carmage.blockTimer > 0) {
+        carmage.blockTimer--;
+        carmage.isBlocking = true;
+    } else {
+        carmage.isBlocking = false;
+    }
+
+    const target = closestEnemy(carmage, 980, false, true);
+    if (!target) return true;
+    carmage.target = target;
+    const a = angleTo(carmage, target);
+    const d = dist(carmage, target);
+    carmage.angle = a;
+
+    // Defensive bumper block: he blocks when pressured or when a projectile/car-sized threat is near his front.
+    let projectileThreat = false;
+    if (Array.isArray(projectiles)) {
+        projectileThreat = projectiles.some(p => {
+            if (!p || p.dead || p.team === carmage.team) return false;
+            const pd = dist(carmage, p);
+            if (pd > 115) return false;
+            const incoming = Math.atan2((p.y || carmage.y) - carmage.y, (p.x || carmage.x) - carmage.x);
+            let diff = incoming - (carmage.angle || 0);
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            return Math.abs(diff) < 1.25;
+        });
+    }
+
+    if (!carmage.isBlocking && carmage.blockCooldown <= 0 && (d < 150 || projectileThreat || Math.random() < 0.008)) {
+        carmage.isBlocking = true;
+        carmage.blockTimer = d < 150 ? 42 : 30;
+        carmage.blockCooldown = 72;
+        if (typeof spawnDamageText === 'function') spawnDamageText(carmage.x, carmage.y - 32, 'BUMPER BLOCK', '#dfe6e9', false);
+    }
+
+    if (d < 230) {
+        carmage.vx -= Math.cos(a) * (carmage.isBlocking ? 0.26 : 0.58);
+        carmage.vy -= Math.sin(a) * (carmage.isBlocking ? 0.26 : 0.58);
+    } else if (d > 590) {
+        carmage.vx += Math.cos(a) * 0.28;
+        carmage.vy += Math.sin(a) * 0.28;
+    } else {
+        const side = Math.sin((frameCount || 0) * 0.042 + carmage.id * 13) > 0 ? 1 : -1;
+        carmage.vx += Math.cos(a + Math.PI / 2 * side) * 0.18;
+        carmage.vy += Math.sin(a + Math.PI / 2 * side) * 0.18;
+    }
+
+    // More traffic variety. Sometimes he calls a heavier wave so trucks/limo can sweep lines.
+    if (carmage.carCooldown <= 0) {
+        carmage.carBurstLeft = 2 + (Math.random() < 0.45 ? 1 : 0) + (Math.random() < 0.16 ? 1 : 0);
+        carmage.carBurstGap = 0;
+        carmage.carCooldown = carmage.hp < carmage.maxHp * 0.45 ? 118 : 142;
+    }
+
+    if (carmage.carBurstLeft > 0 && carmage.carBurstGap <= 0) {
+        if (spawnCarmageCar(carmage, target)) {
+            carmage.carBurstLeft--;
+            carmage.carBurstGap = 16 + Math.floor(Math.random() * 9);
+        }
+    }
+
+    avoidEdges(carmage, 58, 0.65);
+    limitSpeed(carmage, carmage.isBlocking ? 4.4 : 6.0);
+    return true;
+}
+
+    function updateCarmageCars() {
+    if (!Array.isArray(projectiles)) return;
+    projectiles.forEach(car => {
+        if (!car || car.dead || !car.isCarmageCar) return;
+        car.carAngle = Math.atan2(car.vy || 0, car.vx || 0);
+        if (!car.hitIds) car.hitIds = [];
+        if (!car.carMaxHits) car.carMaxHits = 2;
+        if (!car.carDamage) car.carDamage = 58;
+
+        const source = entities.find(e => e && e.id === car.shooterId);
+        let hitsThisFrame = 0;
+
+        entities.forEach(enemy => {
+            if (!enemy || enemy.hp <= 0 || enemy.team === car.team || enemy.type === 'turret') return;
+            if (car.hitIds.includes(enemy.id)) return;
+            if (car.hitIds.length >= car.carMaxHits) return;
+
+            const dx = enemy.x - car.x;
+            const dy = enemy.y - car.y;
+            const ca = Math.cos(-car.carAngle);
+            const sa = Math.sin(-car.carAngle);
+            const localX = dx * ca - dy * sa;
+            const localY = dx * sa + dy * ca;
+            const halfW = (car.carWidth || 58) / 2 + (enemy.radius || 20) * 0.86;
+            const halfH = (car.carHeight || 30) / 2 + (enemy.radius || 20) * 0.92;
+
+            if (Math.abs(localX) <= halfW && Math.abs(localY) <= halfH) {
+                car.hitIds.push(enemy.id);
+                hitsThisFrame++;
+                const damage = enemy.type === 'boid' ? 999 : car.carDamage;
+                const label = (car.carKind || '').includes('truck') ? 'TRUCKED' : ((car.carKind === 'limousine') ? 'LIMO HIT' : 'RUN OVER');
+                directDamage(enemy, damage, enemy.x, enemy.y, source || null, label, '#ff6b00');
+                enemy.vx += Math.cos(car.carAngle) * (12 + (car.carWidth || 58) / 7);
+                enemy.vy += Math.sin(car.carAngle) * (12 + (car.carWidth || 58) / 7);
+                enemy.pushTimer = Math.max(enemy.pushTimer || 0, 22);
+                enemy.lastPushedBy = source ? source.id : null;
+                if (typeof spawnParticles === 'function') spawnParticles(enemy.x, enemy.y, '#ff6b00', car.carKind && car.carKind.includes('truck') ? 26 : 16);
+                if (typeof playSound === 'function') playSound(car.carKind && car.carKind.includes('truck') ? 'heavy_hit' : 'hit', 0.55);
+            }
+        });
+
+        if (hitsThisFrame >= 2 && typeof spawnDamageText === 'function') {
+            spawnDamageText(car.x, car.y - 28, `CHAIN x${hitsThisFrame}`, '#ff6b00', true);
+        }
+    });
+}
+
+    function markMissingMammothMountsAndCooldown() {
+        if (!Array.isArray(entities)) return;
+        entities.forEach(rider => {
+            if (!rider || rider.type !== 'mammoth' || rider.hp <= 0) return;
+            const hadMount = !!rider.mammothId;
+            const mount = rider.mammothId ? entities.find(e => e && e.id === rider.mammothId && e.type === 'mammoth_mount' && e.hp > 0) : null;
+            if (hadMount && !mount && (rider.mammothSpawnCooldown || 0) <= 0) {
+                rider.mammothSpawnCooldown = 90;
+                rider.mammothId = null;
+                rider.isMounted = false;
+                if (typeof spawnDamageText === 'function') spawnDamageText(rider.x, rider.y - 34, 'MAMMOTH DOWN', '#8d6e63', true);
+            }
+            if ((rider.mammothSpawnCooldown || 0) > 0) {
+                rider.mammothSpawnCooldown--;
+            }
+        });
+    }
+
+    if (typeof ensureMammothMount === 'function' && !ensureMammothMount.__farrelMay22CooldownWrapped) {
+        const oldEnsureMammothMount = ensureMammothMount;
+        ensureMammothMount = function farrelMay22EnsureMammothMount(rider) {
+            if (rider && rider.type === 'mammoth') {
+                const knownMount = rider.mammothId
+                    ? entities.find(ent => ent && ent.id === rider.mammothId && ent.type === 'mammoth_mount' && ent.hp > 0)
+                    : null;
+
+                if (rider.mammothId && !knownMount && (rider.mammothSpawnCooldown || 0) <= 0) {
+                    rider.mammothSpawnCooldown = 90;
+                    rider.mammothId = null;
+                    rider.isMounted = false;
+                    return null;
+                }
+
+                if ((rider.mammothSpawnCooldown || 0) > 0) {
+                    return null;
+                }
+            }
+            return oldEnsureMammothMount.apply(this, arguments);
+        };
+        ensureMammothMount.__farrelMay22CooldownWrapped = true;
+        window.ensureMammothMount = ensureMammothMount;
+    }
+
+    function handleMammothCooldownRunaway(rider) {
+        if (!rider || rider.type !== 'mammoth') return false;
+        if (isSetupPhase || rider.hp <= 0) return false;
+        if ((rider.mammothSpawnCooldown || 0) <= 0) return false;
+
+        const threat = closestEnemy(rider, 9999, false, true);
+        if (threat) {
+            const away = angleTo(threat, rider);
+            rider.angle = away;
+            rider.vx += Math.cos(away) * 0.92;
+            rider.vy += Math.sin(away) * 0.92;
+            const side = Math.sin((frameCount || 0) * 0.1 + rider.id) > 0 ? 1 : -1;
+            rider.vx += Math.cos(away + Math.PI / 2 * side) * 0.22;
+            rider.vy += Math.sin(away + Math.PI / 2 * side) * 0.22;
+        }
+        avoidEdges(rider, 48, 0.9);
+        limitSpeed(rider, 6.8);
+        return true;
+    }
+
+    function buffSpatialRuntime(spatial) {
+        if (!spatial || spatial.type !== 'spatial' || spatial.hp <= 0) return;
+        spatial.maxHp = Math.max(spatial.maxHp || 0, 125);
+        spatial.reach = Math.max(spatial.reach || 0, 70);
+        if (spatial.portalCooldown > 0 && frameCount % 2 === 0) spatial.portalCooldown--; // extra cooldown shave
+        if (spatial.stress) spatial.stress = Math.max(0, spatial.stress - 0.35);
+    }
+
+    function syncFightKnightArmorRuntime(fk) {
+        if (!fk || fk.type !== 'fight knight') return;
+        fk.armorMax = Math.max(fk.armorMax || 0, 180);
+        fk.armor = Math.max(0, Math.min(fk.armorMax, fk.hp || 0));
+        if (fk.resurrectionStage === undefined) fk.resurrectionStage = 0;
+    }
+
+    if (typeof applyAI === 'function' && !applyAI.__farrelMay22Wrapped) {
+        const oldApplyAI = applyAI;
+        applyAI = function farrelMay22ApplyAI(e) {
+            if (handleStableBoidAI(e)) return;
+            if (handleLanceKiteAI(e)) return;
+            if (handleUpgradedBombmanAI(e)) return;
+            if (handleCarmageAI(e)) return;
+            if (handleMammothCooldownRunaway(e)) return;
+            return oldApplyAI.apply(this, arguments);
+        };
+        applyAI.__farrelMay22Wrapped = true;
+        window.applyAI = applyAI;
+    }
+
+    if (typeof update === 'function' && !update.__farrelMay22Wrapped) {
+        const oldUpdate = update;
+        update = function farrelMay22Update() {
+            updateSmartBodyMissiles();
+            markMissingMammothMountsAndCooldown();
+            updateThrownBombmanObjects();
+            updateCarmageCars();
+
+            const result = oldUpdate.apply(this, arguments);
+
+            updateSmartBodyMissiles();
+            updateThrownBombmanObjects();
+            updateCarmageCars();
+
+            if (Array.isArray(entities)) {
+                entities.forEach(e => {
+                    if (!e) return;
+                    if (e.type === 'bombman') bombmanAntiBoidSweep(e);
+                    if (e.type === 'spatial') buffSpatialRuntime(e);
+                    if (e.type === 'fight knight') syncFightKnightArmorRuntime(e);
+                });
+            }
+            return result;
+        };
+        update.__farrelMay22Wrapped = true;
+        window.update = update;
+    }
+
+    function drawAlchemistUpgrade(e) {
+    // The alchemist is intentionally clean now. The base draw already adds a small hat and one potion.
+    // Keeping this no-op prevents the old orbiting bottles/gem/rings from cluttering him on mobile.
+    return;
+}
+
+    function drawCarmageCarsAndVisuals() {
+    if (!Array.isArray(projectiles)) return;
+    projectiles.forEach(car => {
+        if (!car || car.dead || !car.isCarmageCar) return;
+        const w = car.carWidth || 58;
+        const h = car.carHeight || 30;
+        const kind = car.carKind || 'car';
+        const body = car.carColor || '#2d3436';
+        const windowColor = car.carWindowColor || '#74b9ff';
+
+        ctx.save();
+        ctx.translate(car.x, car.y);
+        ctx.rotate(car.carAngle || Math.atan2(car.vy || 0, car.vx || 0));
+
+        ctx.fillStyle = body;
+        ctx.strokeStyle = '#111';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(-w / 2, -h / 2, w, h, kind.includes('truck') ? 5 : 8);
+        else ctx.rect(-w / 2, -h / 2, w, h);
+        ctx.fill();
+        ctx.stroke();
+
+        if (kind.includes('truck')) {
+            ctx.fillStyle = '#b2bec3';
+            ctx.fillRect(-w * 0.12, -h * 0.34, w * 0.47, h * 0.68);
+            ctx.fillStyle = windowColor;
+            ctx.fillRect(w * 0.25, -h * 0.30, w * 0.17, h * 0.60);
+        } else if (kind === 'limousine') {
+            ctx.fillStyle = windowColor;
+            for (let i = 0; i < 4; i++) ctx.fillRect(-w * 0.30 + i * 18, -h * 0.32, 11, h * 0.64);
+        } else {
+            ctx.fillStyle = windowColor;
+            ctx.fillRect(-w * 0.14, -h * 0.34, w * 0.30, h * 0.68);
+        }
+
+        ctx.fillStyle = '#ff6b00';
+        ctx.fillRect(w * 0.37, -h * 0.30, Math.max(4, w * 0.08), h * 0.60);
+
+        ctx.fillStyle = '#111';
+        const wheelR = Math.max(4, Math.min(8, h * 0.20));
+        const wheelX = Math.max(12, w * 0.32);
+        ctx.beginPath(); ctx.arc(-wheelX, -h / 2 - 1, wheelR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(wheelX, -h / 2 - 1, wheelR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-wheelX, h / 2 + 1, wheelR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(wheelX, h / 2 + 1, wheelR, 0, Math.PI * 2); ctx.fill();
+
+        if ((car.hitIds || []).length > 0) {
+            ctx.globalAlpha = 0.75;
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${(car.hitIds || []).length}/${car.carMaxHits || 2}`, 0, 4);
+            ctx.globalAlpha = 1;
+        }
+
+        ctx.restore();
+    });
+
+    if (Array.isArray(entities)) {
+        entities.forEach(e => {
+            if (!e || e.hp <= 0) return;
+            if (e.type === 'alchemist') drawAlchemistUpgrade(e);
+            if (e.type === 'carmage') {
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                ctx.rotate(e.angle || 0);
+                const r = e.radius || 20;
+
+                // Steering wheel / traffic remote.
+                ctx.fillStyle = '#ff6b00';
+                ctx.strokeStyle = '#111';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(r + 5, -10, 17, 20, 5);
+                else ctx.rect(r + 5, -10, 17, 20);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#111';
+                ctx.fillRect(r + 9, -5, 9, 3);
+                ctx.fillRect(r + 9, 3, 9, 3);
+
+                if (e.isBlocking) {
+                    ctx.globalAlpha = 0.86;
+                    ctx.strokeStyle = '#dfe6e9';
+                    ctx.lineWidth = 6;
+                    ctx.beginPath();
+                    ctx.arc(r + 3, 0, 17, -1.15, 1.15);
+                    ctx.stroke();
+                    ctx.strokeStyle = '#ff6b00';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(r + 4, 0, 21, -1.0, 1.0);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
+                ctx.restore();
+            }
+            if (e.type === 'fight knight') {
+                const ratio = Math.max(0, Math.min(1, (e.armor || e.hp || 0) / Math.max(1, e.armorMax || 180)));
+                ctx.save();
+                ctx.globalAlpha = 0.28;
+                ctx.strokeStyle = ratio > 0.55 ? '#95a5a6' : ratio > 0.25 ? '#f1c40f' : '#ff4757';
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, (e.radius || 20) + 15, -Math.PI / 2, -Math.PI / 2 + ratio * Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+        });
+    }
+}
+
+    if (typeof draw === 'function' && !draw.__farrelMay22Wrapped) {
+        const oldDraw = draw;
+        draw = function farrelMay22Draw() {
+            const result = oldDraw.apply(this, arguments);
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(camera.zoom, camera.zoom);
+            ctx.translate(-camera.x, -camera.y);
+            drawCarmageCarsAndVisuals();
+            ctx.restore();
+            return result;
+        };
+        draw.__farrelMay22Wrapped = true;
+        window.draw = draw;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        registerMay22Fighters();
+        if (typeof updateSquadUI === 'function') setTimeout(updateSquadUI, 0);
+    });
+})();
+
+
+/* --- FARREL 2026-05-22 CARMAGE BLOCK DAMAGE PATCH --- */
+(function farrelCarmageBlockDamagePatch() {
+    const PATCH_TAG = 'farrelCarmageBlockDamagePatch';
+    if (window[PATCH_TAG]) return;
+    window[PATCH_TAG] = true;
+
+    function angleDiff(a, b) {
+        let diff = a - b;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        return Math.abs(diff);
+    }
+
+    function isCarmageBlockFacing(victim, impactX, impactY) {
+        if (!victim || victim.type !== 'carmage' || !victim.isBlocking || victim.trappedBy) return false;
+        const incoming = Math.atan2((impactY || victim.y) - victim.y, (impactX || victim.x) - victim.x);
+        return angleDiff(incoming, victim.angle || 0) < 1.18;
+    }
+
+    function install() {
+        if (typeof damageEntity === 'function' && !damageEntity.__farrelCarmageBlockWrapped) {
+            const previousDamageEntity = damageEntity;
+            damageEntity = function farrelCarmageBlockDamageEntity(victim, amount, impactX, impactY, source) {
+                if (victim && victim.type === 'carmage' && victim.hp > 0 && amount > 0 && isCarmageBlockFacing(victim, impactX, impactY)) {
+                    const reduction = 0.72 + Math.random() * 0.20;
+                    amount *= (1 - reduction);
+                    victim.vx *= 0.82;
+                    victim.vy *= 0.82;
+                    if ((frameCount || 0) % 5 === 0) {
+                        if (typeof spawnDamageText === 'function') spawnDamageText(victim.x, victim.y - 30, `BLOCK ${Math.round(reduction * 100)}%`, '#dfe6e9', false);
+                        if (typeof spawnParticles === 'function') spawnParticles(impactX || victim.x, impactY || victim.y, '#ff6b00', 4);
+                        if (typeof playSound === 'function') playSound('clash', 0.45);
+                    }
+                }
+                return previousDamageEntity.call(this, victim, amount, impactX, impactY, source);
+            };
+            damageEntity.__farrelCarmageBlockWrapped = true;
+            window.damageEntity = damageEntity;
+        }
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
+    else install();
 })();
